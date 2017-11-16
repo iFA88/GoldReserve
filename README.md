@@ -1,0 +1,2 @@
+# GoldReserve
+XGR
