@@ -1,0 +1,2042 @@
+<html>
+<head>
+	<meta charset="UTF-8">
+</head>
+<body>
+<style>
+pre {
+	width: 40%;
+	display: inline-block;
+	vertical-align: top;
+	overflow: scroll;
+	height: 60%;
+}
+pre#out {
+	width: 55% !important;
+}
+input[type="range"] {
+	width: 90%;
+	display: inline-block;
+	margin-left: auto;
+}
+span#historyRangeID {
+	margin-right: 3px;
+	display: inline-block;
+	text-align: right;
+}
+.ranger {
+    text-align: right;
+    width: 70%;
+    float: right;
+}
+button {
+	display: inline-block;
+}
+.rowHighlight {
+	background-color: #FDD;
+}
+.hide {
+	display: none;
+}
+select {
+    height: 100px;
+}
+</style>
+<!--
+http://192.168.2.198:51666
+http://localhost:8545
+-->
+<div class="ranger">
+	<span id="historyRangeID">0</span>
+	<input id="historyRangeEl" type="range"  min="0" max="0" autocomplete="off" /><br>
+	<button onclick="toggleFilters();">Toggle</button>
+	<div id="filters">
+		<label><input onchange="showDatabase();" type="checkbox" checked id="deb_accounts"/>Accounts</label>
+		<label><input onchange="showDatabase();" type="checkbox" checked id="deb_token"/>Token</label>
+		<label><input onchange="showDatabase();" type="checkbox" checked id="deb_deposits"/>Deposits</label>
+		<div>
+			<input class="filter" onchange="showDatabase();" type="text" id="filter-1-1"><input class="filter" onchange="showDatabase();" type="text" id="filter-1-2"><input class="filter" onchange="showDatabase();" type="text" id="filter-1-3"><input class="filter" onchange="showDatabase();" type="text" id="filter-1-4"><input class="filter" onchange="showDatabase();" type="text" id="filter-1-5">
+		</div>
+		<div>
+			<input class="filter" onchange="showDatabase();" type="text" id="filter-2-1"><input class="filter" onchange="showDatabase();" type="text" id="filter-2-2"><input class="filter" onchange="showDatabase();" type="text" id="filter-2-3"><input class="filter" onchange="showDatabase();" type="text" id="filter-2-4"><input class="filter" onchange="showDatabase();" type="text" id="filter-2-5">
+		</div>
+		<div>
+			<input class="filter" onchange="showDatabase();" type="text" id="filter-3-1"><input class="filter" onchange="showDatabase();" type="text" id="filter-3-2"><input class="filter" onchange="showDatabase();" type="text" id="filter-3-3"><input class="filter" onchange="showDatabase();" type="text" id="filter-3-4"><input class="filter" onchange="showDatabase();" type="text" id="filter-3-5">
+		</div>
+		<div>
+			<input class="filter" onchange="showDatabase();" type="text" id="filter-4-1"><input class="filter" onchange="showDatabase();" type="text" id="filter-4-2"><input class="filter" onchange="showDatabase();" type="text" id="filter-4-3"><input class="filter" onchange="showDatabase();" type="text" id="filter-4-4"><input class="filter" onchange="showDatabase();" type="text" id="filter-4-5">
+		</div>
+		<div>
+			<input class="filter" onchange="showDatabase();" type="text" id="filter-5-1"><input class="filter" onchange="showDatabase();" type="text" id="filter-5-2"><input class="filter" onchange="showDatabase();" type="text" id="filter-5-3"><input class="filter" onchange="showDatabase();" type="text" id="filter-5-4"><input class="filter" onchange="showDatabase();" type="text" id="filter-5-5">
+		</div>
+	</div>
+</div>
+<button onclick="setNode('VBOX');">VirtualBox</button>
+<button onclick="setNode('Geth');">Geth</button>
+<label><input type="checkbox" id="testRPC"/>testRPC-py</label><br>
+<input id="nodeAddr" type="text" value="" autocomplete="off" style="width:300px;"/>
+<div>
+	<select multiple id="testChoicer" onChange="loadTest(this.value);" autocomplete="off">
+		<option checked value="default-test">Default test</option>
+		<option value="deposit-test">Deposit test</option>
+		<option value="replace-test">Replace contracts test</option>
+		<option value="thirdpartycontract-test">Thid party contract test</option>
+	</select>
+</div>
+<button onclick="start();">Start</button><br>
+<button onclick="stop();">Stop</button>
+<button onclick="resume();">Resume</button>
+<button onclick="doOneStep();">One step</button>
+<pre id="out"></pre>
+<pre id="db"></pre>
+<script src="web3.js"></script>
+<script src="bignumber.min.js"></script>
+<script src="elliptic.min.js"></script>
+<script src="sha3.min.js"></script>
+<script>
+// javascript
+function toggleFilters() {
+	document.getElementById('filters').classList.toggle('hide');
+}
+function setNode(t) {
+	if ( t == "VBOX" ) {
+		document.getElementById("nodeAddr").value = 'http://192.168.56.101:51666';
+		document.getElementById("testRPC").checked = true;
+	} else if ( t == "Geth" ) {
+		document.getElementById("nodeAddr").value = 'http://localhost:8545';
+		document.getElementById("testRPC").checked = false;
+	}
+}
+
+// csatlakozas
+var Web3 = require('web3');
+var web3 = new Web3();
+web3._extend({
+	property: 'evm',
+	methods:
+	[
+		new web3._extend.Method({
+			name: 'reset',
+			call: 'evm_reset',
+		}),
+		new web3._extend.Method({
+			name: 'revert',
+			call: 'evm_revert',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'mine',
+			call: 'evm_mine',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'timeTravel',
+			call: 'testing_timeTravel',
+			params: 1,
+		}),
+		new web3._extend.Property({
+			name: 'snapshot',
+			call: 'evm_snapshot',
+			params: 0,
+			outputFormatter: web3._extend.utils.toDecimal
+		}),
+		new web3._extend.Method({
+			name: 'configure',
+			call: 'rpc_configure',
+			params: 2,
+			inputFormatter: [null, null]
+		}),
+	],
+	properties:
+	[]
+});
+web3._extend({
+	property: 'debug',
+	methods:
+	[
+		new web3._extend.Method({
+			name: 'traceTransaction',
+			call: 'debug_traceTransaction',
+			params: 2,
+			inputFormatter: [null,null],
+		}),
+		new web3._extend.Method({
+			name: 'storageRangeAt',
+			call: 'debug_storageRangeAt',
+			params: 6,
+			inputFormatter: null,
+		}),
+	],
+	properties:
+	[]
+});
+
+
+// kornyezet
+var testRPC = true;
+setNode('VBOX');
+var acc = {};
+
+// contractok adatai
+/*
+
+	A nullas tombuek azok amik lent vannak a blokklancon!
+	Az elso tombuek az uj contractok
+
+*/
+var contracts = {
+	tokenDB:[
+		{
+			tokenDB_ABI:[{"constant":false,"inputs":[{"name":"from","type":"address"},{"name":"to","type":"address"},{"name":"amount","type":"uint256"},{"name":"fee","type":"uint256"}],"name":"transfer","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"lockedBalances","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],"name":"getAllowance","outputs":[{"name":"success","type":"bool"},{"name":"remaining","type":"uint256"},{"name":"nonce","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"},{"name":"amount","type":"uint256"},{"name":"nonce","type":"uint256"}],"name":"setAllowance","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"addr","type":"address"},{"name":"amount","type":"uint256"},{"name":"end","type":"uint256"},{"name":"interestOnEnd","type":"uint256"},{"name":"interestBeforeEnd","type":"uint256"},{"name":"interestFee","type":"uint256"},{"name":"multiplier","type":"uint256"},{"name":"closeable","type":"bool"}],"name":"openDeposit","outputs":[{"name":"success","type":"bool"},{"name":"DID","type":"uint256"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"depositsAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"owner","type":"address"},{"name":"value","type":"uint256"}],"name":"increase","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"DID","type":"uint256"}],"name":"closeDeposit","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"tokenAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"UID","type":"uint256"}],"name":"getDeposit","outputs":[{"name":"addr","type":"address"},{"name":"amount","type":"uint256"},{"name":"start","type":"uint256"},{"name":"end","type":"uint256"},{"name":"interestOnEnd","type":"uint256"},{"name":"interestBeforeEnd","type":"uint256"},{"name":"interestFee","type":"uint256"},{"name":"interestMultiplier","type":"uint256"},{"name":"closeable","type":"bool"},{"name":"valid","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"replaceOwner","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"depositsCounter","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newDepositsAddress","type":"address"}],"name":"changeDepositsAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"newTokenAddress","type":"address"}],"name":"changeTokenAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"},{"name":"","type":"address"}],"name":"allowance","outputs":[{"name":"amount","type":"uint256"},{"name":"nonce","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"owner","type":"address"},{"name":"value","type":"uint256"}],"name":"decrease","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"}],
+			tokenDB_code:"0x"+"606060405260008054600160a060020a03191633600160a060020a0316179055341561002a57600080fd5b610b04806100396000396000f3006060604052600436106101065763ffffffff7c01000000000000000000000000000000000000000000000000000000006000350416630411b252811461010b5780630483a7f61461014a5780630af4187d1461017b5780630dd84392146101c657806318160ddd146101f15780632f91d669146102045780634d84ba3714610254578063522afaec1461028357806370a08231146102a557806383b24c52146102c45780638da5cb5b146102da5780639d76ea58146102ed5780639f9fb96814610300578063a39a45b714610378578063a8a0d21014610397578063bc6f05fe146103aa578063c9cda91f146103cb578063dd62ed3e146103ea578063f27ac4d914610427575b600080fd5b341561011657600080fd5b610136600160a060020a0360043581169060243516604435606435610449565b604051901515815260200160405180910390f35b341561015557600080fd5b610169600160a060020a03600435166104f6565b60405190815260200160405180910390f35b341561018657600080fd5b6101a0600160a060020a0360043581169060243516610508565b604051921515835260208301919091526040808301919091526060909101905180910390f35b34156101d157600080fd5b610136600160a060020a036004358116906024351660443560643561053f565b34156101fc57600080fd5b610169610594565b341561020f57600080fd5b61023a600160a060020a036004351660243560443560643560843560a43560c43560e435151561059a565b604051911515825260208201526040908101905180910390f35b341561025f57600080fd5b610267610728565b604051600160a060020a03909116815260200160405180910390f35b341561028e57600080fd5b610136600160a060020a0360043516602435610737565b34156102b057600080fd5b610169600160a060020a03600435166107aa565b34156102cf57600080fd5b6101366004356107bc565b34156102e557600080fd5b610267610874565b34156102f857600080fd5b610267610883565b341561030b57600080fd5b610316600435610892565b604051600160a060020a03909a168a5260208a01989098526040808a01979097526060890195909552608088019390935260a087019190915260c086015260e08501521515610100840152901515610120830152610140909101905180910390f35b341561038357600080fd5b610136600160a060020a03600435166108f5565b34156103a257600080fd5b61016961093c565b34156103b557600080fd5b6103c9600160a060020a0360043516610942565b005b34156103d657600080fd5b6103c9600160a060020a0360043516610984565b34156103f557600080fd5b61040f600160a060020a03600435811690602435166109c6565b60405191825260208201526040908101905180910390f35b341561043257600080fd5b610136600160a060020a03600435166024356109e7565b60055460009033600160a060020a0390811691161461046757600080fd5b600160a060020a0385166000908152600260205260409020546104939061048e8585610a8c565b610aa7565b600160a060020a0380871660009081526002602052604080822093909355908616815220546104c29084610a8c565b600160a060020a0385166000908152600260205260409020556008546104e89083610aa7565b600855506001949350505050565b60046020526000908152604090205481565b600160a060020a03918216600090815260016020818152604080842094909516835292909252919091208054908201549192909190565b60055460009033600160a060020a0390811691161461055d57600080fd5b50600160a060020a039384166000908152600160208181526040808420969097168352949094529390932090815581019190915590565b60085481565b600654600090819033600160a060020a039081169116146105ba57600080fd5b506007805460010190819055600160a060020a038a166000908152600460205260409020546105e9908a610a8c565b600160a060020a038b16600090815260046020526040908190209190915561014090519081016040908152600160a060020a038c16825260208083018c90524382840152606083018b9052608083018a905260a0830189905260c0830188905260e08301879052851515610100840152600161012084015260008481526003909152208151815473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a03919091161781556020820151816001015560408201518160020155606082015181600301556080820151816004015560a0820151816005015560c0820151816006015560e0820151816007015561010082015160088201805460ff1916911515919091179055610120820151600890910180549115156101000261ff001990921691909117905550600191509850989650505050505050565b600654600160a060020a031681565b60055460009033600160a060020a0390811691161461075557600080fd5b600160a060020a0383166000908152600260205260409020546107789083610a8c565b600160a060020a03841660009081526002602052604090205560085461079e9083610a8c565b60085550600192915050565b60026020526000908152604090205481565b60065460009033600160a060020a039081169116146107da57600080fd5b600082815260036020526040902060080154610100900460ff1615156107ff57600080fd5b600082815260036020818152604080842060088101805461ff00191690558054600160a060020a03168552600483529084205493869052919052600101546108479190610aa7565b600083815260036020908152604080832054600160a060020a031683526004909152902055506001919050565b600054600160a060020a031681565b600554600160a060020a031681565b6000908152600360208190526040909120805460018201546002830154938301546004840154600585015460068601546007870154600890970154600160a060020a03909616989497969395929491939092909160ff8083169261010090041690565b60006108ff610ac3565b151561090a57600080fd5b5060008054600160a060020a03831673ffffffffffffffffffffffffffffffffffffffff199091161790556001919050565b60075481565b61094a610ac3565b151561095557600080fd5b6006805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b61098c610ac3565b151561099757600080fd5b6005805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b60016020818152600093845260408085209091529183529120805491015482565b60055460009033600160a060020a03908116911614610a0557600080fd5b600160a060020a0383166000908152600260209081526040808320546004909252822054610a38919061048e9086610a8c565b1015610a4357600080fd5b600160a060020a038316600090815260026020526040902054610a669083610aa7565b600160a060020a03841660009081526002602052604090205560085461079e9083610aa7565b600080821115610aa257818301839011610aa257fe5b500190565b600080821115610abd57818303839010610abd57fe5b50900390565b60005433600160a060020a03908116911614905600a165627a7a72305820426a2c8c95ad8b33f54f5b6a2cf6469024c586f0ccf589e499a10472073a8da40029",
+		},
+	],
+	tokenLib:[
+		{
+			tokenLib_ABI:[{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"value","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newLibAddress","type":"address"}],"name":"changeLibAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"from","type":"address"},{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transferFrom","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"libAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"},{"name":"nonce","type":"uint256"},{"name":"extraData","type":"bytes"}],"name":"approveAndCall","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeMin","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"owner","type":"address"},{"name":"value","type":"uint256"}],"name":"mint","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"},{"name":"nonce","type":"uint256"}],"name":"approve","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"depositsAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balancesOf","outputs":[{"name":"balance","type":"uint256"},{"name":"lockedAmount","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"rate","type":"uint256"},{"name":"rateMultiplier","type":"uint256"},{"name":"min","type":"uint256"},{"name":"max","type":"uint256"}],"name":"changeFees","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"value","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeMax","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"replaceOwner","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeRate","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newDepositsAddress","type":"address"}],"name":"changeDepositsAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"},{"name":"extraData","type":"bytes"}],"name":"transfer","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"newDatabaseAddress","type":"address"}],"name":"changeDataBaseAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeRateM","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newForkAddress","type":"address"}],"name":"changeForkAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],"name":"allowance","outputs":[{"name":"remaining","type":"uint256"},{"name":"nonce","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"databaseAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"value","type":"uint256"}],"name":"getTransactionFee","outputs":[{"name":"success","type":"bool"},{"name":"fee","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"forkAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"inputs":[{"name":"newDatabaseAddress","type":"address"},{"name":"newDepositAddress","type":"address"},{"name":"newFrokAddress","type":"address"},{"name":"newLibAddress","type":"address"}],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"payable":false,"stateMutability":"nonpayable","type":"fallback"},{"anonymous":false,"inputs":[{"indexed":true,"name":"spender","type":"address"},{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"value","type":"uint256"}],"name":"AllowanceUsed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"addr","type":"address"},{"indexed":true,"name":"value","type":"uint256"}],"name":"Mint","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"addr","type":"address"},{"indexed":true,"name":"value","type":"uint256"}],"name":"Burn","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_owner","type":"address"},{"indexed":true,"name":"_spender","type":"address"},{"indexed":false,"name":"_value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_from","type":"address"},{"indexed":true,"name":"_to","type":"address"},{"indexed":false,"name":"_value","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":true,"name":"value","type":"uint256"},{"indexed":false,"name":"data","type":"bytes"}],"name":"Transfer2","type":"event"}],
+			tokenLib_code:"0x"+"6060604090815260008054600160a060020a03191633600160a060020a03161790558051908101604052600b81527f476f6c6452657365727665000000000000000000000000000000000000000000602082015260019080516200006892916020019062000165565b5060408051908101604052600381527f584752000000000000000000000000000000000000000000000000000000000060208201526002908051620000b292916020019062000165565b506003805460ff1916600817905560146004556103e8600555621e8480600655630bebc2006007553415620000e657600080fd5b60405160808062001a118339810160405280805191906020018051919060200180519190602001805160088054600160a060020a0319908116600160a060020a039889161790915560098054821696881696909617909555600a80548616948716949094179093555050600b805490921692169190911790556200020a565b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f10620001a857805160ff1916838001178555620001d8565b82800160010185558215620001d8579182015b82811115620001d8578251825591602001919060010190620001bb565b50620001e6929150620001ea565b5090565b6200020791905b80821115620001e65760008155600101620001f1565b90565b6117f7806200021a6000396000f30060606040526004361061015b5763ffffffff60e060020a60003504166306fdde03811461016b57806318160ddd146101f55780631e1d696a1461021a57806323b872dd1461023b57806329fd50eb14610277578063313ce567146102a6578063381731be146102cf5780633e78cf7a1461030257806340c10f1914610315578063426a8493146103375780634d84ba371461035c5780636392a51f1461036f578063650c4226146103a657806370a08231146103c55780637207f9ce146103e45780638da5cb5b146103f757806395d89b411461040a578063a39a45b71461041d578063a9059cbb1461043c578063a9689d0f1461045e578063bc6f05fe14610471578063be45fd6214610490578063c1f919e5146104bf578063cea63361146104de578063d29f6d8b146104f1578063dd62ed3e14610510578063dfa1580914610535578063dfc7d48814610548578063f157ea0b14610578575b341561016657600080fd5b600080fd5b341561017657600080fd5b61017e61058b565b60405160208082528190810183818151815260200191508051906020019080838360005b838110156101ba5780820151838201526020016101a2565b50505050905090810190601f1680156101e75780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561020057600080fd5b610208610629565b60405190815260200160405180910390f35b341561022557600080fd5b610239600160a060020a0360043516610692565b005b341561024657600080fd5b610263600160a060020a03600435811690602435166044356106d4565b604051901515815260200160405180910390f35b341561028257600080fd5b61028a6108a7565b604051600160a060020a03909116815260200160405180910390f35b34156102b157600080fd5b6102b96108b6565b60405160ff909116815260200160405180910390f35b34156102da57600080fd5b61026360048035600160a060020a0316906024803591604435916064359081019101356108bf565b341561030d57600080fd5b610208610998565b341561032057600080fd5b610263600160a060020a036004351660243561099e565b341561034257600080fd5b610263600160a060020a03600435166024356044356109ea565b341561036757600080fd5b61028a610a01565b341561037a57600080fd5b61038e600160a060020a0360043516610a10565b60405191825260208201526040908101905180910390f35b34156103b157600080fd5b610239600435602435604435606435610b06565b34156103d057600080fd5b610208600160a060020a0360043516610b2d565b34156103ef57600080fd5b610208610ba8565b341561040257600080fd5b61028a610bae565b341561041557600080fd5b61017e610bbd565b341561042857600080fd5b610263600160a060020a0360043516610c28565b341561044757600080fd5b610263600160a060020a0360043516602435610c6f565b341561046957600080fd5b610208610c87565b341561047c57600080fd5b610239600160a060020a0360043516610c8d565b341561049b57600080fd5b61026360048035600160a060020a0316906024803591604435918201910135610ccf565b34156104ca57600080fd5b610239600160a060020a0360043516610d19565b34156104e957600080fd5b610208610d5b565b34156104fc57600080fd5b610239600160a060020a0360043516610d61565b341561051b57600080fd5b61038e600160a060020a0360043581169060243516610da3565b341561054057600080fd5b61028a610e53565b341561055357600080fd5b61055e600435610e62565b604051911515825260208201526040908101905180910390f35b341561058357600080fd5b61028a610eb7565b60018054600181600116156101000203166002900480601f0160208091040260200160405190810160405280929190818152602001828054600181600116156101000203166002900480156106215780601f106105f657610100808354040283529160200191610621565b820191906000526020600020905b81548152906001019060200180831161060457829003601f168201915b505050505081565b600854600090600160a060020a03166318160ddd82604051602001526040518163ffffffff1660e060020a028152600401602060405180830381600087803b151561067357600080fd5b6102c65a03f1151561068457600080fd5b505050604051805191505090565b61069a610ec6565b15156106a557600080fd5b600b805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b6000806000806106e26117b9565b33600160a060020a031688600160a060020a031614151561088b57600854600160a060020a0316630af4187d893360006040516060015260405160e060020a63ffffffff8516028152600160a060020a03928316600482015291166024820152604401606060405180830381600087803b151561075e57600080fd5b6102c65a03f1151561076f57600080fd5b5050506040518051906020018051906020018051905093509350935083151561079757600080fd5b6107a18387610edb565b92506107ae826001610ef7565b600854909250600160a060020a0316630dd843928933868660006040516020015260405160e060020a63ffffffff8716028152600160a060020a03948516600482015292909316602483015260448201526064810191909152608401602060405180830381600087803b151561082357600080fd5b6102c65a03f1151561083457600080fd5b50505060405180519050151561084957600080fd5b8588600160a060020a031633600160a060020a03167f2103cdfb2f74999b6ffea5fdf05d864485c49a84f1bed894d5592f6a8426632160405160405180910390a45b610899888888600185610f12565b506001979650505050505050565b600b54600160a060020a031681565b60035460ff1681565b60006108cc868686611496565b6108d586611648565b15156108e057600080fd5b85600160a060020a03166363542c263387868660006040516020015260405160e060020a63ffffffff8716028152600160a060020a0385166004820190815260248201859052606060448301908152606483018490529091608401848480828437820191505095505050505050602060405180830381600087803b151561096657600080fd5b6102c65a03f1151561097757600080fd5b50505060405180519050151561098c57600080fd5b50600195945050505050565b60065481565b600a5460009033600160a060020a03908116911614806109cc575060095433600160a060020a039081169116145b15156109d757600080fd5b6109e183836116c6565b50600192915050565b60006109f7848484611496565b5060019392505050565b600954600160a060020a031681565b6008546000908190600160a060020a03166370a0823184836040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b1515610a6d57600080fd5b6102c65a03f11515610a7e57600080fd5b5050506040518051600854909150600160a060020a0316630483a7f68560006040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b1515610ae257600080fd5b6102c65a03f11515610af357600080fd5b5050506040518051905091509150915091565b610b0e610ec6565b1515610b1957600080fd5b600493909355600591909155600655600755565b600854600090600160a060020a03166370a0823183836040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b1515610b8857600080fd5b6102c65a03f11515610b9957600080fd5b50505060405180519392505050565b60075481565b600054600160a060020a031681565b60028054600181600116156101000203166002900480601f0160208091040260200160405190810160405280929190818152602001828054600181600116156101000203166002900480156106215780601f106105f657610100808354040283529160200191610621565b6000610c32610ec6565b1515610c3d57600080fd5b5060008054600160a060020a03831673ffffffffffffffffffffffffffffffffffffffff199091161790556001919050565b6000610c796117b9565b6109f7338585600185610f12565b60045481565b610c95610ec6565b1515610ca057600080fd5b6009805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b6000610d0e338686600187878080601f016020809104026020016040519081016040528181529291906020840183838082843750610f12945050505050565b506001949350505050565b610d21610ec6565b1515610d2c57600080fd5b6008805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b60055481565b610d69610ec6565b1515610d7457600080fd5b600a805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b6008546000908190819081908190600160a060020a0316630af4187d8888846040516060015260405160e060020a63ffffffff8516028152600160a060020a03928316600482015291166024820152604401606060405180830381600087803b1515610e0e57600080fd5b6102c65a03f11515610e1f57600080fd5b50505060405180519060200180519060200180519050925092509250821515610e4757600080fd5b90969095509350505050565b600854600160a060020a031681565b6000806064600554610e7685600454611786565b811515610e7f57fe5b04811515610e8957fe5b049050600754811115610e9f5750600754610eae565b600654811015610eae57506006545b60019150915091565b600a54600160a060020a031681565b60005433600160a060020a0390811691161490565b600080821115610ef157818303839010610ef157fe5b50900390565b600080821115610f0d57818301839011610f0d57fe5b500190565b600080600080610f206117b9565b879150600160a060020a038a1615801590610f435750600160a060020a03891615155b1515610f4e57600080fd5b8615610ff757610f5d88610e62565b9095509350841515610f6e57600080fd5b6008548890600160a060020a03166370a082318c60006040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b1515610fc957600080fd5b6102c65a03f11515610fda57600080fd5b505050604051805190501415610ff757610ff48885610edb565b91505b861561103557838a600160a060020a03167fcc16f5dbb4873280815c1ee09dbd06736cffcc184412cf7a71a0fdb75d397ca560405160405180910390a35b88600160a060020a03168a600160a060020a03167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8460405190815260200160405180910390a38189600160a060020a03168b600160a060020a03167f33475ab46b06bcbdf4cf9458e0c24f511200a813eac7576a263346fc181aa30b8960405160208082528190810183818151815260200191508051906020019080838360005b838110156110ef5780820151838201526020016110d7565b50505050905090810190601f16801561111c5780820380516001836020036101000a031916815260200191505b509250505060405180910390a4600854600160a060020a0316630411b2528b8b858860006040516020015260405160e060020a63ffffffff8716028152600160a060020a03948516600482015292909316602483015260448201526064810191909152608401602060405180830381600087803b151561119b57600080fd5b6102c65a03f115156111ac57600080fd5b5050506040518051905015156111c157600080fd5b6111ca896117b1565b1561148a576111d889611648565b15156111e357600080fd5b88600160a060020a031663e418f5928b8a896000604051604001526040518463ffffffff1660e060020a0281526004018084600160a060020a0316600160a060020a0316815260200183815260200180602001828103825283818151815260200191508051906020019080838360005b8381101561126b578082015183820152602001611253565b50505050905090810190601f1680156112985780820380516001836020036101000a031916815260200191505b509450505050506040805180830381600087803b15156112b757600080fd5b6102c65a03f115156112c857600080fd5b5050506040518051906020018051919650909350508415156112e957600080fd5b8288116112f557600080fd5b600083111561148a5789600160a060020a031689600160a060020a03167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8560405190815260200160405180910390a3828a600160a060020a03168a600160a060020a03167f33475ab46b06bcbdf4cf9458e0c24f511200a813eac7576a263346fc181aa30b8460405160208082528190810183818151815260200191508051906020019080838360005b838110156113b85780820151838201526020016113a0565b50505050905090810190601f1680156113e55780820380516001836020036101000a031916815260200191505b509250505060405180910390a4600854600160a060020a0316630411b2528a8c866000806040516020015260405160e060020a63ffffffff8716028152600160a060020a03948516600482015292909316602483015260448201526064810191909152608401602060405180830381600087803b151561146457600080fd5b6102c65a03f1151561147557600080fd5b50505060405180519050151561148a57600080fd5b50505050505050505050565b600080600085600160a060020a031633600160a060020a0316141515156114bc57600080fd5b600854600160a060020a0316630af4187d338860006040516060015260405160e060020a63ffffffff8516028152600160a060020a03928316600482015291166024820152604401606060405180830381600087803b151561151d57600080fd5b6102c65a03f1151561152e57600080fd5b5050506040518051906020018051906020018051905092509250925082801561155657508381145b151561156157600080fd5b600854600160a060020a0316630dd843923388888860006040516020015260405160e060020a63ffffffff8716028152600160a060020a03948516600482015292909316602483015260448201526064810191909152608401602060405180830381600087803b15156115d357600080fd5b6102c65a03f115156115e457600080fd5b5050506040518051905015156115f957600080fd5b85600160a060020a031633600160a060020a03167f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9258760405190815260200160405180910390a3505050505050565b600030600160a060020a031682600160a060020a03166396aaa6186000604051602001526040518163ffffffff1660e060020a028152600401602060405180830381600087803b151561169a57600080fd5b6102c65a03f115156116ab57600080fd5b50505060405180519050600160a060020a0316149050919050565b600854600160a060020a031663522afaec838360006040516020015260405160e060020a63ffffffff8516028152600160a060020a0390921660048301526024820152604401602060405180830381600087803b151561172557600080fd5b6102c65a03f1151561173657600080fd5b50505060405180519050151561174b57600080fd5b8082600160a060020a03167f0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d412139688560405160405180910390a35050565b60008282028315806117a2575082848281151561179f57fe5b04145b15156117aa57fe5b9392505050565b6000903b1190565b602060405190810160405260008152905600a165627a7a72305820e756b103c4c702065a1f194602fd58867abfcb5eea0f61e0d02683bb71c24f4c0029",
+		},
+	],
+	token:[
+		{
+			token_ABI:[{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"value","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newLibAddress","type":"address"}],"name":"changeLibAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"from","type":"address"},{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transferFrom","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"libAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"},{"name":"nonce","type":"uint256"},{"name":"extraData","type":"bytes"}],"name":"approveAndCall","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeMin","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"owner","type":"address"},{"name":"value","type":"uint256"}],"name":"mint","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"},{"name":"nonce","type":"uint256"}],"name":"approve","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"depositsAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balancesOf","outputs":[{"name":"balance","type":"uint256"},{"name":"lockedAmount","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"rate","type":"uint256"},{"name":"rateMultiplier","type":"uint256"},{"name":"min","type":"uint256"},{"name":"max","type":"uint256"}],"name":"changeFees","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"value","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeMax","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"replaceOwner","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeRate","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newDepositsAddress","type":"address"}],"name":"changeDepositsAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"},{"name":"extraData","type":"bytes"}],"name":"transfer","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"newDatabaseAddress","type":"address"}],"name":"changeDataBaseAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"transactionFeeRateM","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newForkAddress","type":"address"}],"name":"changeForkAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],"name":"allowance","outputs":[{"name":"remaining","type":"uint256"},{"name":"nonce","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"databaseAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"value","type":"uint256"}],"name":"getTransactionFee","outputs":[{"name":"success","type":"bool"},{"name":"fee","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"forkAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"inputs":[{"name":"newDatabaseAddress","type":"address"},{"name":"newDepositAddress","type":"address"},{"name":"newFrokAddress","type":"address"},{"name":"newLibAddress","type":"address"}],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"payable":false,"stateMutability":"nonpayable","type":"fallback"},{"anonymous":false,"inputs":[{"indexed":true,"name":"spender","type":"address"},{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"value","type":"uint256"}],"name":"AllowanceUsed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"addr","type":"address"},{"indexed":true,"name":"value","type":"uint256"}],"name":"Mint","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"addr","type":"address"},{"indexed":true,"name":"value","type":"uint256"}],"name":"Burn","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_owner","type":"address"},{"indexed":true,"name":"_spender","type":"address"},{"indexed":false,"name":"_value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_from","type":"address"},{"indexed":true,"name":"_to","type":"address"},{"indexed":false,"name":"_value","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":true,"name":"value","type":"uint256"},{"indexed":false,"name":"data","type":"bytes"}],"name":"Transfer2","type":"event"}],
+			token_code:"0x"+"6060604090815260008054600160a060020a03191633600160a060020a03161790558051908101604052600b81527f476f6c64526573657276650000000000000000000000000000000000000000006020820152600190805161006692916020019061015e565b5060408051908101604052600381527f5847520000000000000000000000000000000000000000000000000000000000602082015260029080516100ae92916020019061015e565b506003805460ff1916600817905560146004556103e8600555621e8480600655630bebc20060075534156100e157600080fd5b604051608080610b108339810160405280805191906020018051919060200180519190602001805160088054600160a060020a0319908116600160a060020a039889161790915560098054821696881696909617909555600a80548616948716949094179093555050600b805490921692169190911790556101f9565b828054600181600116156101000203166002900490600052602060002090601f016020900481019282601f1061019f57805160ff19168380011785556101cc565b828001600101855582156101cc579182015b828111156101cc5782518255916020019190600101906101b1565b506101d89291506101dc565b5090565b6101f691905b808211156101d857600081556001016101e2565b90565b610908806102086000396000f3006060604052600436106101745763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166306fdde03811461018457806318160ddd1461020e5780631e1d696a1461023357806323b872dd1461025457806329fd50eb14610290578063313ce567146102bf578063381731be146102e85780633e78cf7a1461031b57806340c10f191461032e578063426a8493146103505780634d84ba37146103755780636392a51f14610388578063650c4226146103bf57806370a08231146103de5780637207f9ce146103fd5780638da5cb5b1461041057806395d89b4114610423578063a39a45b714610436578063a9059cbb1461032e578063a9689d0f14610455578063bc6f05fe14610468578063be45fd6214610487578063c1f919e5146104b6578063cea63361146104d5578063d29f6d8b146104e8578063dd62ed3e14610507578063dfa158091461052c578063dfc7d4881461053f578063f157ea0b1461056f575b341561017f57600080fd5b600080fd5b341561018f57600080fd5b610197610582565b60405160208082528190810183818151815260200191508051906020019080838360005b838110156101d35780820151838201526020016101bb565b50505050905090810190601f1680156102005780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561021957600080fd5b610221610620565b60405190815260200160405180910390f35b341561023e57600080fd5b610252600160a060020a036004351661064d565b005b341561025f57600080fd5b61027c600160a060020a0360043581169060243516604435610620565b604051901515815260200160405180910390f35b341561029b57600080fd5b6102a361068f565b604051600160a060020a03909116815260200160405180910390f35b34156102ca57600080fd5b6102d261069e565b60405160ff909116815260200160405180910390f35b34156102f357600080fd5b61027c60048035600160a060020a031690602480359160443591606435908101910135610620565b341561032657600080fd5b6102216106a7565b341561033957600080fd5b61027c600160a060020a0360043516602435610620565b341561035b57600080fd5b61027c600160a060020a0360043516602435604435610620565b341561038057600080fd5b6102a36106ad565b341561039357600080fd5b6103a7600160a060020a03600435166106bc565b60405191825260208201526040908101905180910390f35b34156103ca57600080fd5b6102526004356024356044356064356106e9565b34156103e957600080fd5b610221600160a060020a0360043516610620565b341561040857600080fd5b610221610710565b341561041b57600080fd5b6102a3610716565b341561042e57600080fd5b610197610725565b341561044157600080fd5b61027c600160a060020a0360043516610790565b341561046057600080fd5b6102216107d7565b341561047357600080fd5b610252600160a060020a03600435166107dd565b341561049257600080fd5b61027c60048035600160a060020a0316906024803591604435918201910135610620565b34156104c157600080fd5b610252600160a060020a036004351661081f565b34156104e057600080fd5b610221610861565b34156104f357600080fd5b610252600160a060020a0360043516610867565b341561051257600080fd5b6103a7600160a060020a03600435811690602435166106bc565b341561053757600080fd5b6102a36108a9565b341561054a57600080fd5b6105556004356106bc565b604051911515825260208201526040908101905180910390f35b341561057a57600080fd5b6102a36108b8565b60018054600181600116156101000203166002900480601f0160208091040260200160405190810160405280929190818152602001828054600181600116156101000203166002900480156106185780601f106105ed57610100808354040283529160200191610618565b820191906000526020600020905b8154815290600101906020018083116105fb57829003601f168201915b505050505081565b600b54600090600160a060020a031660205136600082376020813683855af480801561064b57602083f35bfe5b6106556108c7565b151561066057600080fd5b600b805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b600b54600160a060020a031681565b60035460ff1681565b60065481565b600954600160a060020a031681565b600b546000908190600160a060020a031660205136600082376040813683855af480801561064b57604083f35b6106f16108c7565b15156106fc57600080fd5b600493909355600591909155600655600755565b60075481565b600054600160a060020a031681565b60028054600181600116156101000203166002900480601f0160208091040260200160405190810160405280929190818152602001828054600181600116156101000203166002900480156106185780601f106105ed57610100808354040283529160200191610618565b600061079a6108c7565b15156107a557600080fd5b5060008054600160a060020a03831673ffffffffffffffffffffffffffffffffffffffff199091161790556001919050565b60045481565b6107e56108c7565b15156107f057600080fd5b6009805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b6108276108c7565b151561083257600080fd5b6008805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b60055481565b61086f6108c7565b151561087a57600080fd5b600a805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b600854600160a060020a031681565b600a54600160a060020a031681565b60005433600160a060020a03908116911614905600a165627a7a7230582031bac263f4c339f402f3fe357cb2bc91ed4b4d4ec20d9792a6467cad90fb39bd0029",
+		},
+	],
+	deposits:[
+		{
+			deposits_ABI:[{"constant":true,"inputs":[],"name":"interestMultiplier","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"founderAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newFounderAddress","type":"address"}],"name":"changeFounderAddresss","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"amount","type":"uint256"},{"name":"depositType","type":"uint256"}],"name":"placeDeposit","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"blockDelay","type":"uint256"},{"name":"baseFunds","type":"uint256"},{"name":"interestRateOnEnd","type":"uint256"},{"name":"interestRateBeforeEnd","type":"uint256"},{"name":"interestFee","type":"uint256"},{"name":"closeable","type":"bool"}],"name":"addDepositType","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"DTID","type":"uint256"}],"name":"rekoveDepositType","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"","type":"uint256"}],"name":"depositTypes","outputs":[{"name":"blockDelay","type":"uint256"},{"name":"baseFunds","type":"uint256"},{"name":"interestRateOnEnd","type":"uint256"},{"name":"interestRateBeforeEnd","type":"uint256"},{"name":"interestFee","type":"uint256"},{"name":"closeable","type":"bool"},{"name":"valid","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"depositTypesCounter","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"tokenAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"replaceOwner","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"DID","type":"uint256"}],"name":"calculateInterest","outputs":[{"name":"","type":"uint256"},{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newDatabaseAddress","type":"address"}],"name":"changeDataBaseAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"newTokenAddress","type":"address"}],"name":"changeTokenAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"beneficary","type":"address"},{"name":"DID","type":"uint256"}],"name":"closeDeposit","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"databaseAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"anonymous":false,"inputs":[{"indexed":true,"name":"DTID","type":"uint256"},{"indexed":false,"name":"blockDelay","type":"uint256"},{"indexed":false,"name":"baseFunds","type":"uint256"},{"indexed":false,"name":"interestRateOnEnd","type":"uint256"},{"indexed":false,"name":"interestRateBeforeEnd","type":"uint256"},{"indexed":false,"name":"interestFee","type":"uint256"},{"indexed":false,"name":"closeable","type":"bool"}],"name":"EventNewDepositType","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"DTID","type":"uint256"}],"name":"EventRevokeDepositType","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"DID","type":"uint256"}],"name":"EventNewDeposit","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"DID","type":"uint256"},{"indexed":true,"name":"interest","type":"uint256"},{"indexed":true,"name":"interestFee","type":"uint256"}],"name":"EventDepositClosed","type":"event"}],
+			deposits_code:"0x"+"606060405260008054600160a060020a03191633600160a060020a0316179055612710600655341561003057600080fd5b6111398061003f6000396000f3006060604052600436106100cc5763ffffffff60e060020a600035041663195dc7cc81146100d157806346bb2833146100f6578063486acb17146101255780634c2434c7146101465780635d2e01851461015f5780635ff7b60914610186578063808cd12f1461019c5780638da5cb5b146101f257806396561c84146102055780639d76ea5814610218578063a39a45b71461022b578063a57475e01461025e578063c1f919e51461028c578063c9cda91f146102ab578063ca9b5e39146102ca578063dfa15809146102ec575b600080fd5b34156100dc57600080fd5b6100e46102ff565b60405190815260200160405180910390f35b341561010157600080fd5b610109610305565b604051600160a060020a03909116815260200160405180910390f35b341561013057600080fd5b610144600160a060020a0360043516610314565b005b341561015157600080fd5b610144600435602435610356565b341561016a57600080fd5b61014460043560243560443560643560843560a43515156106de565b341561019157600080fd5b610144600435610812565b34156101a757600080fd5b6101b2600435610841565b604051968752602087019590955260408087019490945260608601929092526080850152151560a084015290151560c083015260e0909101905180910390f35b34156101fd57600080fd5b610109610883565b341561021057600080fd5b6100e4610892565b341561022357600080fd5b610109610898565b341561023657600080fd5b61024a600160a060020a03600435166108a7565b604051901515815260200160405180910390f35b341561026957600080fd5b6102746004356108ee565b60405191825260208201526040908101905180910390f35b341561029757600080fd5b610144600160a060020a0360043516610a3a565b34156102b657600080fd5b610144600160a060020a0360043516610a7c565b34156102d557600080fd5b610144600160a060020a0360043516602435610abe565b34156102f757600080fd5b610109610d0b565b60065481565b600554600160a060020a031681565b61031c610d1a565b151561032757600080fd5b6005805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b600354600454600091829182918291600160a060020a039182169116639d76ea5883604051602001526040518163ffffffff1660e060020a028152600401602060405180830381600087803b15156103ad57600080fd5b6102c65a03f115156103be57600080fd5b50505060405180519050600160a060020a03161415156103dd57600080fd5b600454600160a060020a033081169116634d84ba376000604051602001526040518163ffffffff1660e060020a028152600401602060405180830381600087803b151561042957600080fd5b6102c65a03f1151561043a57600080fd5b50505060405180519050600160a060020a031614151561045957600080fd5b600085815260016020526040902060050154610100900460ff16151561047e57600080fd5b600085815260016020819052604090912001548690111561049e57600080fd5b600454600160a060020a03166370a082313360006040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b15156104f757600080fd5b6102c65a03f1151561050857600080fd5b5050506040518051600454909550600160a060020a03169050630483a7f63360006040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b151561056e57600080fd5b6102c65a03f1151561057f57600080fd5b505050604051805190509250856105968585610d2f565b10156105a157600080fd5b600454600086815260016020526040902054600160a060020a0390911690632f91d66990339089906105d4904390610d4b565b60008a8152600160205260408082206002810154600382015460048301546006546005909401549295919490939260ff169190516040015260405160e060020a63ffffffff8b16028152600160a060020a039098166004890152602488019690965260448701949094526064860192909252608485015260a484015260c4830152151560e4820152610104016040805180830381600087803b151561067857600080fd5b6102c65a03f1151561068957600080fd5b50505060405180519060200180519050915091508115156106a957600080fd5b807f841288911d481878c17ba8438dab57924c5e084dccf6dd9e5fa5e6c64e3efe9960405160405180910390a2505050505050565b60006106e8610d1a565b15156106f357600080fd5b50600280546001019081905560e060405190810160409081528882526020808301899052818301889052606083018790526080830186905284151560a0840152600160c084018190526000858152915220815181556020820151816001015560408201518160020155606082015181600301556080820151816004015560a082015160058201805460ff191691151591909117905560c0820151600590910180549115156101000261ff001990921691909117905550807f80573089be734169d5b0e8319b7cc60fc1e5afe9df0a8878d3e97b12d581289f88888888888860405195865260208601949094526040808601939093526060850191909152608084015290151560a083015260c0909101905180910390a250505050505050565b61081a610d1a565b151561082557600080fd5b6000908152600160205260409020600501805461ff0019169055565b60016020819052600091825260409091208054918101546002820154600383015460048401546005909401549293919290919060ff8082169161010090041687565b600054600160a060020a031681565b60025481565b600354600160a060020a031681565b60006108b1610d1a565b15156108bc57600080fd5b5060008054600160a060020a03831673ffffffffffffffffffffffffffffffffffffffff199091161790556001919050565b600080600080600080600080600080600080600460009054906101000a9004600160a060020a0316600160a060020a0316639f9fb9688e6000604051610140015260405160e060020a63ffffffff8416028152600481019190915260240161014060405180830381600087803b151561096657600080fd5b6102c65a03f1151561097757600080fd5b505050604051805190602001805190602001805190602001805190602001805190602001805190602001805190602001805190602001805190602001805190509950995099509950995099509950995099509950610a27610140604051908101604052808c600160a060020a031681526020018b81526020018a81526020018981526020018881526020018781526020018681526020018581526020018415158152602001831515815250610d66565b9b509b5050505050505050505050915091565b610a42610d1a565b1515610a4d57600080fd5b6004805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b610a84610d1a565b1515610a8f57600080fd5b6003805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b6003546004546000918291829182918291829182918291829182918291600160a060020a039081169116639d76ea5883604051602001526040518163ffffffff1660e060020a028152600401602060405180830381600087803b1515610b2357600080fd5b6102c65a03f11515610b3457600080fd5b50505060405180519050600160a060020a0316141515610b5357600080fd5b600454600160a060020a033081169116634d84ba376000604051602001526040518163ffffffff1660e060020a028152600401602060405180830381600087803b1515610b9f57600080fd5b6102c65a03f11515610bb057600080fd5b50505060405180519050600160a060020a0316141515610bcf57600080fd5b8c9a50600160a060020a038b161515610be657339a505b600454600160a060020a0316639f9fb9688d6000604051610140015260405160e060020a63ffffffff8416028152600481019190915260240161014060405180830381600087803b1515610c3957600080fd5b6102c65a03f11515610c4a57600080fd5b505050604051805190602001805190602001805190602001805190602001805190602001805190602001805190602001805190602001805190602001805190509950995099509950995099509950995099509950610cfc8b8d610140604051908101604052808e600160a060020a031681526020018d81526020018c81526020018b81526020018a81526020018981526020018881526020018781526020018615158152602001851515815250610ebe565b50505050505050505050505050565b600454600160a060020a031681565b60005433600160a060020a0390811691161490565b600080821115610d4557818303839010610d4557fe5b50900390565b600080821115610d6157818301839011610d6157fe5b500190565b6000806000808461012001511580610d8357506000856020015111155b80610d9657508460400151856060015111155b80610da5575084604001514311155b15610db65760009350839250610eb7565b43856060015111610de15784608001519150610dda85606001518660400151610d2f565b9050610e0a565b8461010001511515610df257600080fd5b8460a001519150610e07438660400151610d2f565b90505b811515610e1d5760009350839250610eb7565b610e65610e4e610e48610e3e610e378960200151876110cd565b60646110f8565b8860e001516110f8565b836110cd565b610e6087606001518860400151610d2f565b6110f8565b935060008560c00151118015610e7b5750600084115b15610ea157610e9e610e94610e37868860c001516110cd565b8660e001516110f8565b92505b6000831115610eb757610eb48484610d2f565b93505b5050915091565b6000808261012001518015610ee55750600160a060020a0333168351600160a060020a0316145b1515610ef057600080fd5b610ef983610d66565b915091506000821115610f8b57600354600160a060020a03166340c10f19868460006040516020015260405160e060020a63ffffffff8516028152600160a060020a0390921660048301526024820152604401602060405180830381600087803b1515610f6557600080fd5b6102c65a03f11515610f7657600080fd5b505050604051805190501515610f8b57600080fd5b600081111561102057600354600554600160a060020a03918216916340c10f1991168360006040516020015260405160e060020a63ffffffff8516028152600160a060020a0390921660048301526024820152604401602060405180830381600087803b1515610ffa57600080fd5b6102c65a03f1151561100b57600080fd5b50505060405180519050151561102057600080fd5b600454600160a060020a03166383b24c528560006040516020015260405160e060020a63ffffffff84160281526004810191909152602401602060405180830381600087803b151561107157600080fd5b6102c65a03f1151561108257600080fd5b50505060405180519050151561109757600080fd5b8082857fef0e3b42621f4b7c765aeee931591033a4f7c1846bf4727233d2707e1e1e903960405160405180910390a45050505050565b60008282028315806110e957508284828115156110e657fe5b04145b15156110f157fe5b9392505050565b6000818381151561110557fe5b0493925050505600a165627a7a72305820249b3d486ee046699887c8ee824fc47a2da4b2fd201a06f10c0f4e2c3cf32a580029",
+		},
+	],
+	fork:[
+		{
+			fork_ABI:[{"constant":true,"inputs":[],"name":"uploader","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"addr","type":"address[]"},{"name":"amount","type":"uint256[]"}],"name":"upload","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"tokenAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"replaceOwner","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"newTokenAddress","type":"address"}],"name":"changeTokenAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"inputs":[{"name":"_uploader","type":"address"}],"payable":false,"stateMutability":"nonpayable","type":"constructor"}],
+			fork_code:"0x"+"606060405260008054600160a060020a03191633600160a060020a0316179055341561002a57600080fd5b6040516020806103c78339810160405280805160018054600160a060020a03909216600160a060020a031990921691909117905550506103588061006f6000396000f3006060604052600436106100775763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166365fe2a0b811461007c578063743b8d87146100ab5780638da5cb5b146100d75780639d76ea58146100ea578063a39a45b7146100fd578063c9cda91f14610130575b600080fd5b341561008757600080fd5b61008f61014f565b604051600160a060020a03909116815260200160405180910390f35b34156100b657600080fd5b6100d5602460048035828101929082013591813591820191013561015e565b005b34156100e257600080fd5b61008f610270565b34156100f557600080fd5b61008f61027f565b341561010857600080fd5b61011c600160a060020a036004351661028e565b604051901515815260200160405180910390f35b341561013b57600080fd5b6100d5600160a060020a03600435166102d5565b600154600160a060020a031681565b60015460009033600160a060020a0390811691161461017c57600080fd5b83821461018857600080fd5b5060005b8381101561026957600254600160a060020a03166340c10f198686848181106101b157fe5b90506020020135600160a060020a031685858581811015156101cf57fe5b905060200201356000604051602001526040517c010000000000000000000000000000000000000000000000000000000063ffffffff8516028152600160a060020a0390921660048301526024820152604401602060405180830381600087803b151561023b57600080fd5b6102c65a03f1151561024c57600080fd5b50505060405180519050151561026157600080fd5b60010161018c565b5050505050565b600054600160a060020a031681565b600254600160a060020a031681565b6000610298610317565b15156102a357600080fd5b5060008054600160a060020a03831673ffffffffffffffffffffffffffffffffffffffff199091161790556001919050565b6102dd610317565b15156102e857600080fd5b6002805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b60005433600160a060020a03908116911614905600a165627a7a72305820de9e2e807e7ba2432c35fbb9e5c072fad0f1bde67c564117d191cf950ff398d60029",
+		},
+	],
+	sample:[
+		{
+			sample_ABI:[{"constant":false,"inputs":[{"name":"amount","type":"uint256"}],"name":"withdraw","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"addr","type":"address"},{"name":"amount","type":"uint256"},{"name":"data","type":"bytes"}],"name":"approvedToken","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"XGRAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"newOwner","type":"address"}],"name":"replaceOwner","outputs":[{"name":"success","type":"bool"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"newTokenAddress","type":"address"}],"name":"changeTokenAddress","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"addr","type":"address"},{"name":"amount","type":"uint256"},{"name":"data","type":"bytes"}],"name":"receiveToken","outputs":[{"name":"","type":"bool"},{"name":"","type":"uint256"}],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[],"name":"killThisContract","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"deposits","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"inputs":[{"name":"newXGRTokenAddress","type":"address"}],"payable":false,"stateMutability":"nonpayable","type":"constructor"}],
+			sample_code:"0x"+"606060405260008054600160a060020a03191633600160a060020a0316179055341561002a57600080fd5b60405160208061072f8339810160405280805160028054600160a060020a03909216600160a060020a031990921691909117905550506106c08061006f6000396000f30060606040526004361061007f5763ffffffff60e060020a6000350416632e1a7d4d811461008457806363542c261461009c5780638da5cb5b146100df57806396aaa6181461010e578063a39a45b714610121578063c9cda91f14610140578063e418f5921461015f578063f81bfa3f146101a8578063fc7e286d146101bb575b600080fd5b341561008f57600080fd5b61009a6004356101ec565b005b34156100a757600080fd5b6100cb60048035600160a060020a031690602480359160443591820191013561030e565b604051901515815260200160405180910390f35b34156100ea57600080fd5b6100f26103d3565b604051600160a060020a03909116815260200160405180910390f35b341561011957600080fd5b6100f26103e2565b341561012c57600080fd5b6100cb600160a060020a03600435166103f1565b341561014b57600080fd5b61009a600160a060020a0360043516610438565b341561016a57600080fd5b61018e60048035600160a060020a031690602480359160443591820191013561047a565b604051911515825260208201526040908101905180910390f35b34156101b357600080fd5b61009a6104b3565b34156101c657600080fd5b6101da600160a060020a03600435166105d0565b60405190815260200160405180910390f35b6002546000908190600160a060020a031663dfc7d48884836040516040015260405160e060020a63ffffffff841602815260048101919091526024016040805180830381600087803b151561024057600080fd5b6102c65a03f1151561025157600080fd5b505050604051805190602001805190509150915081151561027157600080fd5b61027b33846105e2565b600254600160a060020a031663a9059cbb336102978685610625565b60006040516020015260405160e060020a63ffffffff8516028152600160a060020a0390921660048301526024820152604401602060405180830381600087803b15156102e357600080fd5b6102c65a03f115156102f457600080fd5b50505060405180519050151561030957600080fd5b505050565b60025460009033600160a060020a0390811691161461032c57600080fd5b600254600160a060020a03166323b872dd86308760006040516020015260405160e060020a63ffffffff8616028152600160a060020a0393841660048201529190921660248201526044810191909152606401602060405180830381600087803b151561039857600080fd5b6102c65a03f115156103a957600080fd5b5050506040518051905015156103be57600080fd5b6103c88585610641565b506001949350505050565b600054600160a060020a031681565b600254600160a060020a031681565b60006103fb610664565b151561040657600080fd5b5060008054600160a060020a03831673ffffffffffffffffffffffffffffffffffffffff199091161790556001919050565b610440610664565b151561044b57600080fd5b6002805473ffffffffffffffffffffffffffffffffffffffff1916600160a060020a0392909216919091179055565b600254600090819033600160a060020a0390811691161461049a57600080fd5b6104a48686610641565b50600195600095509350505050565b60006104bd610664565b15156104c857600080fd5b600254600160a060020a03166370a082313060006040516020015260405160e060020a63ffffffff8416028152600160a060020a039091166004820152602401602060405180830381600087803b151561052157600080fd5b6102c65a03f1151561053257600080fd5b5050506040518051600254909250600160a060020a0316905063a9059cbb338360006040516020015260405160e060020a63ffffffff8516028152600160a060020a0390921660048301526024820152604401602060405180830381600087803b151561059e57600080fd5b6102c65a03f115156105af57600080fd5b5050506040518051905015156105c457600080fd5b33600160a060020a0316ff5b60016020526000908152604090205481565b600160a060020a0382166000908152600160205260409020546106059082610625565b600160a060020a0390921660009081526001602052604090209190915550565b60008082111561063b5781830383901061063b57fe5b50900390565b600160a060020a0382166000908152600160205260409020546106059082610679565b60005433600160a060020a0390811691161490565b60008082111561068f5781830183901161068f57fe5b5001905600a165627a7a7230582067770873d67ea4295a99a0ddfae33194922870e951466e2d7a283a7941736d300029",
+		},
+	],
+}
+var tokenDB = null;
+var token = null;
+var fork = null;
+var deposits = null;
+
+// default database
+function resetDatabase() {
+	return {
+		"node":{
+			"startBlock":0,
+			"endBlock":0,
+		},
+		"accounts":{
+			"default":new BigNumber(0),
+		},
+		"token":{
+			"totalSupply":new BigNumber(0),
+			"balanceOf":{
+				"default":new BigNumber(0),
+			},
+			"lockedBalance":{
+				"default":new BigNumber(0),
+			},
+			"transactionFee":20, // 0.02%
+			"transactionFeeM":1000, // 20%
+			"transactionFeeMin":new BigNumber(2000000), // 0.02 token
+			"transactionFeeMax":new BigNumber(200000000), // 2 token
+		},
+		"deposits":{
+			"types":{
+				"default":{
+					"delay":0,
+					"baseFunds":new BigNumber(0),
+					"interestRateOnEnd":new BigNumber(0),
+					"interestRateBeforeEnd":new BigNumber(0),
+					"interestFee":new BigNumber(0),
+					"closeable":false,
+					"valid":false,
+				},
+			},
+			"deposits":{
+				"default":{
+					"addr":"",
+					"amount":new BigNumber(0),
+					"start":0,
+					"end":0,
+					"interestOnEnd":new BigNumber(0),
+					"interestBeforeEnd":new BigNumber(0),
+					"interestFee":new BigNumber(0),
+					"interestMultiplier":new BigNumber(0),
+					"closeable":false,
+					"valid":false,
+				},
+			},
+			"interestMultiplier":new BigNumber(1e4),
+		},
+	};
+}
+
+// database
+var database = {};
+
+// databaseHistory
+var databaseHistory = [];
+var testTimer = null;
+var currentTest = 0;
+var oneStep = false;
+function nextTest(id) {
+	currentTest = id;
+	if ( oneStep ) {
+		oneStep = false;
+	} else {
+		testTimer = window.setTimeout(function() { tester[id](id); }, 250);
+	}
+}
+function start() {
+	loadTest(document.getElementById("testChoicer").value);
+	tester[0](0);
+}
+function stop() {
+	window.clearTimeout(testTimer);
+}
+function resume() {
+	tester[currentTest](currentTest);
+}
+function doOneStep() {
+	oneStep = true;
+	tester[currentTest](currentTest);
+}
+// teszletesi funkciok
+var tests = {
+	"End":function(id) {
+		setOk(id);
+	},
+	"Base":function(id) {
+		testRPC = document.getElementById("testRPC").checked;
+		if (testRPC) {
+			acc = {
+				"ifa":"0x6e5fd1741e45c966a76a077af9132627c07b0dc1", // 0x0af37c53fdc5b97bf1f84d30e84f09c84f733e467a3b26c1ce6c5d448f9d7cec
+				"foundation":"0xef057953c56855f16e658bf8fd0d2e300961fc1f", // 0x0d5c1bd818a4086f28314415cb375a937593efab66f8f7d2903bf2a13ed35070
+				"miki":"0x2c284ef5a0d50dda177bd8c9fdf20610f6fdac09", // 0x17029bda254fdf118125741e80d2d43e8ac1ffa8cca20c51683bc0735c802e5b
+				"founder":"0xbd3c601b59f46cc59be3446ba29c66b9182a70b6", // 0x8d2fd08f91550712ec0db96bdbb849ec88a560e200c58f05954827b2593cf9e7
+				"zoli":"0x4fe1ead95d882580561b704938ecbd5cb9450ab6", // 0x71c52b034f6405fbabb6ad5e91997dd2ea1f43d48502e10dd47d5a4a8a02cbdf
+				"forkUploader":"0x3e2ff0583a5dec1bd3ac0f7b8d26fa96b759fe92", // 0x9ca1d29731e6302e3e7d7f0ebaf2b4fa48d7b7fd4f5c82f59b3983b0a2160d7e
+				"bela":"0x7703aca0f4ee937c3073ec80c7608b6f7ce2426b", // 0x9e256901c752616c231904281333e5dd11fa48fdfd7ffac3515923b1fe60a28e
+				"pista":"0x153ee6ad2e7e665b8a07ff37d93271d6e5fdc6d4", // 0xb10ec925fccdaf155fa0b56bd55cf6ce3cc8927b304c0a563476529d925755d5
+				"miner":"0xac7bebd558c734fe105d09167860b230fb0a218d", // 0x43df74be7858da13bb08c1289fe488b9843c555538dd1638203725b18a19863e
+			};
+		}
+		else {
+			acc = {
+				"ifa":"0xbd2cf599d8d65ce147851b705bb31f7f919a5ebc",
+				"foundation":"0x3786987df99ecb98d98a53a13420daef781a4f10",
+				"miki":"0xf70e4a9445747680fe733a5199a20395b5a0c888",
+				"founder":"0xc877c65ed78b3107d9d7092b7c2a3498e5c028e2",
+				"forkUploader":"0x1519b3ecd8b873b2f6c5f89a981e117b44b7980e",
+				"zoli":"0xb3032d52aace919ec3709b8fa9f8edebc5bfd7c1",
+				"pista":"0xefbfa55a4f88f7c403c1840c09b6ff1cd9838864",
+				"bela":"0x9b2342492a7fa799439ad5f9b01e1ba9286e22c6",
+				"miner":"0x18bfe27ea92f2110706197a6c12fcb1c88b367c7",
+			};
+		}
+		setRet(id, "Connecting to RPC node..");
+		try {
+			web3.setProvider(new web3.providers.HttpProvider(document.getElementById('nodeAddr').value));
+			if ( testRPC ) {
+				//web3.evm.reset();
+			}
+			web3.eth.defaultAccount = acc.ifa
+		} catch(err) {
+			setFailed(id);
+			console.log(err);
+			return;
+		}
+		setRet(id, 'Creating default database..');
+		database = resetDatabase();
+		databaseHistory = [];
+		setRet(id, 'Loading accounts..');
+		for (a in acc) {
+			if ( ! ( acc[a] in database.accounts ) ) { database.accounts[acc[a]] = deepCopy(database.accounts["default"]); }
+			database.accounts[acc[a]] = new BigNumber(web3.eth.getBalance(acc[a]));
+		}
+		setRet(id, 'Mining genesis block..');
+		database.node.startBlock = web3.eth.blockNumber;
+		if ( testRPC ) { web3.evm.mine(1); }
+		setOk(id);
+		nextTest(id+1);
+	},
+	"First Deposits deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, value:"0", gas:"0x3d0900", data:contracts.deposits[0].deposits_code});
+		waitUntilMined(tx, id, function(a, b) {
+			deposits = web3.eth.contract(contracts.deposits[0].deposits_ABI).at(b.contractAddress);
+			database.node.deposits = deposits.address;
+			database.deposits.interestMultiplier = deposits.interestMultiplier();
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"Second Deposits deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, value:"0", gas:"0x3d0900", data:contracts.deposits[0].deposits_code});
+		waitUntilMined(tx, id, function(a, b) {
+			deposits = web3.eth.contract(contracts.deposits[0].deposits_ABI).at(b.contractAddress);
+			oldDeposits = database.node.deposits;
+			database.node.deposits = deposits.address;
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"TokenDB deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, value:"0", gas:"0x3d0900", data:contracts.tokenDB[0].tokenDB_code});
+		waitUntilMined(tx, id, function(a, b) {
+			tokenDB = web3.eth.contract(contracts.tokenDB[0].tokenDB_ABI).at(b.contractAddress);
+			database.node.tokenDB = tokenDB.address;
+			console.log('tokenDB addr: '+b.contractAddress);
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"Token deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, value:"0", gas:"0x3d0900", data:contracts.token[0].token_code + createConstructor(contracts.token[0].token_ABI, [
+			tokenDB.address,
+			deposits.address,
+			fork.address,
+			tokenLib.address
+		])});
+		waitUntilMined(tx, id, function(a, b) {
+			token = web3.eth.contract(contracts.token[0].token_ABI).at(b.contractAddress);
+			database.node.token = token.address;
+			database.token.totalSupply = token.totalSupply();
+			console.log('Token addr: '+b.contractAddress);
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"First TokenLib deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, gas:"0x3d0900", data:contracts.tokenLib[0].tokenLib_code + createConstructor(contracts.tokenLib[0].tokenLib_ABI, [
+			'',
+			'',
+			'',
+			''
+		])});
+		waitUntilMined(tx, id, function(a, b) {
+			tokenLib = web3.eth.contract(contracts.tokenLib[0].tokenLib_ABI).at(b.contractAddress);
+			database.node.tokenLib = tokenLib.address;
+			console.log('TokenLib addr: '+b.contractAddress);
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"Second TokenLib deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, gas:"0x3d0900", data:contracts.tokenLib[0].tokenLib_code + createConstructor(contracts.tokenLib[0].tokenLib_ABI, [
+			'',
+			'',
+			'',
+			''
+		])});
+		waitUntilMined(tx, id, function(a, b) {
+			tokenLib = web3.eth.contract(contracts.tokenLib[0].tokenLib_ABI).at(b.contractAddress);
+			oldTokenLib = tokenLib;
+			database.node.tokenLib = tokenLib.address;
+			console.log('TokenLib addr: '+b.contractAddress);
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"Fork deploy":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.ifa, value:"0", gas:"0x3d0900", data:contracts.fork[0].fork_code + createConstructor(contracts.fork[0].fork_ABI, [
+			acc.forkUploader, // uploader
+		])});
+		waitUntilMined(tx, id, function(a, b) {
+			fork = web3.eth.contract(contracts.fork[0].fork_ABI).at(b.contractAddress);
+			database.node.fork = fork.address;
+			console.log('fork addr: '+b.contractAddress);
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"Set TokenLib Address to Token":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.changeLibAddress, tokenLib.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set TokenDB Address to Token":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.changeDataBaseAddress, tokenDB.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Deposits Address to Token":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.changeDepositsAddress, deposits.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Fork Address to Token":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.changeForkAddress, fork.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Token Address to TokenDB":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(tokenDB.changeTokenAddress, token.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Deposits Address to TokenDB":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(tokenDB.changeDepositsAddress, deposits.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Token Address to Deposits":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.changeTokenAddress, token.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set TokenDB Address to Deposits":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.changeDataBaseAddress, tokenDB.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Founder Address to Deposits":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.changeFounderAddresss, acc.founder, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Token Address to Fork":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(fork.changeTokenAddress, token.address, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Deploy sample contract":function(id) {
+		setRet(id, "Sending Transaction..");
+		tx = createContract(web3, {from:acc.miki, value:"0", gas:"0x3d0900", data:contracts.sample[0].sample_code + createConstructor(contracts.sample[0].sample_ABI, [
+			token.address
+		])});
+		waitUntilMined(tx, id, function(a, b) {
+			sample = web3.eth.contract(contracts.sample[0].sample_ABI).at(b.contractAddress);
+			database.node.sample = sample.address;
+			if ( web3.eth.getCode(b.contractAddress).length <= 2 ) {
+				setFailed(a);
+			} else {
+				setOk(a);
+				nextTest(a+1);
+			}
+		});
+	},
+	"Fork upload balances":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(fork.upload, [
+			acc.ifa,
+			acc.zoli
+		], [
+			new BigNumber("100000000000000"), // 1 millio XGR
+			new BigNumber("15000000000") // 150 XGR
+		], { from:acc.forkUploader });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseTokenTransaction(null, acc.ifa, new BigNumber("100000000000000"));
+			databaseTokenTransaction(null, acc.zoli, new BigNumber("15000000000"));
+			if ( ! checks.userTokenBalance(a, "iFA", acc.ifa) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Zoli", acc.zoli) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Deposit Type 1":function(id) {
+		setRet(id, "Sending Transaction..");
+		var data = [
+			200, // block delay
+			new BigNumber("100000000").toString(), // basefunds
+			database.deposits.interestMultiplier.mul(100).toString(), // interestRateOnEnd 100%
+			database.deposits.interestMultiplier.mul(50).toString(), // interestRateBeforeEnd 50%
+			database.deposits.interestMultiplier.mul(0.01).toString(), // interestFee
+			true, // closeable
+			{ from:acc.ifa }
+		];
+		var ret = safeCall.apply(this, [deposits.addDepositType].concat(data));
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DTID = deposits.depositTypesCounter().toString();
+			databaseAddNewDepositType.apply(this, [DTID].concat(data));
+			if ( ! checks.depositsType(a, DTID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Deposit Type 2":function(id) {
+		setRet(id, "Sending Transaction..");
+		var data = [
+			1000, // block delay
+			new BigNumber("100000000000").toString(), // basefunds
+			database.deposits.interestMultiplier.mul(200).toString(), // interestRateOnEnd 100%
+			database.deposits.interestMultiplier.mul(100).toString(), // interestRateBeforeEnd 50%
+			database.deposits.interestMultiplier.mul(0.01).toString(), // interestFee
+			true, // closeable
+			{ from:acc.ifa }
+		];
+		var ret = safeCall.apply(this, [deposits.addDepositType].concat(data));
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = deposits.depositTypesCounter().toString();
+			databaseAddNewDepositType.apply(this, [DID].concat(data));
+			if ( ! checks.depositsType(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Deposit Type 3":function(id) {
+		setRet(id, "Sending Transaction..");
+		var data = [
+			1000, // block delay
+			new BigNumber("100000000000").toString(), // basefunds
+			database.deposits.interestMultiplier.mul(200).toString(), // interestRateOnEnd 100%
+			database.deposits.interestMultiplier.mul(0).toString(), // interestRateBeforeEnd 50%
+			database.deposits.interestMultiplier.mul(0).toString(), // interestFee
+			true, // closeable
+			{ from:acc.ifa }
+		];
+		var ret = safeCall.apply(this, [deposits.addDepositType].concat(data));
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = deposits.depositTypesCounter().toString();
+			databaseAddNewDepositType.apply(this, [DID].concat(data));
+			if ( ! checks.depositsType(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Set Deposit Type 4":function(id) {
+		setRet(id, "Sending Transaction..");
+		var data = [
+			200, // block delay
+			new BigNumber("100000000000").toString(), // basefunds
+			database.deposits.interestMultiplier.mul(200).toString(), // interestRateOnEnd 100%
+			database.deposits.interestMultiplier.mul(0).toString(), // interestRateBeforeEnd 50%
+			database.deposits.interestMultiplier.mul(0).toString(), // interestFee
+			false, // closeable
+			{ from:acc.ifa }
+		];
+		var ret = safeCall.apply(this, [deposits.addDepositType].concat(data));
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = deposits.depositTypesCounter().toString();
+			databaseAddNewDepositType.apply(this, [DID].concat(data));
+			if ( ! checks.depositsType(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Revoke Deposit Type ID 1":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.rekoveDepositType, 1, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			database.deposits.types["1"].valid = false;
+			if ( ! checks.depositsType(a, "1") ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Revoke Deposit Type ID 2":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.rekoveDepositType, 2, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			database.deposits.types["2"].valid = false;
+			if ( ! checks.depositsType(a, "2") ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Revoke Deposit Type ID 3":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.rekoveDepositType, 3, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			database.deposits.types["3"].valid = false;
+			if ( ! checks.depositsType(a, "3") ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Revoke Deposit Type ID 4":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.rekoveDepositType, 4, { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			database.deposits.types["4"].valid = false;
+			if ( ! checks.depositsType(a, "4") ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on iFA with 500 Token for Type 1":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "50000000000", "1", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "1", acc.ifa, new BigNumber("50000000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on iFA with 1500 Token for Type 2":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "150000000000", "2", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "2", acc.ifa, new BigNumber("150000000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on iFA with 2000 Token for Type 3":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "200000000000", "3", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "3", acc.ifa, new BigNumber("200000000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on iFA with 2000 Token for Type 4":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "200000000000", "4", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "4", acc.ifa, new BigNumber("200000000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on Zoli with 25 Token for Type 1":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "2500000000", "1", { from:acc.zoli });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "1", acc.zoli, new BigNumber("2500000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on Zoli with 25 Token for Type 1 (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "2500000000", "1", { from:acc.zoli });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Place deposit on Zoli with 25 Token for Type 2 (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "2500000000", "2", { from:acc.zoli });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Place deposit on Zoli with 25 Token for Type 2":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "2500000000", "2", { from:acc.zoli });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "2", acc.zoli, new BigNumber("2500000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Place deposit on Zoli with 25 Token for Type 3":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.placeDeposit, "2500000000", "3", { from:acc.zoli });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var DID = tokenDB.depositsCounter().toString();
+			databasePlaceDeposit(DID, "3", acc.zoli, new BigNumber("2500000000"));
+			if ( ! checks.deposits(a, DID) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 1 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "1"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 2 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "2"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 3 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "3"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 4 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "4"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 5 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "5"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 6 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "6"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 7 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "7"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 8 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "8"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 8 DID (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "8"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', "8", { from:depositerAddress });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Close deposit 9 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "9"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 9 DID (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "9"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', "9", { from:depositerAddress });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Close deposit 10 DID":function(id) {
+		setRet(id, "Sending Transaction..");
+		var DID = "10"
+		var depositerAddress = database.deposits.deposits[DID].addr;
+		var ret = safeCall(deposits.closeDeposit, '', DID, { from:depositerAddress });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseCloseDeposit(DID);
+			if ( ! checks.deposits(a, DID) ) { return; }
+			if ( ! checks.userTokenBalance(a, getAccountByAddress(depositerAddress), depositerAddress) ) { return; }
+			if ( ! checks.userTokenBalance(a, "Founder", acc.founder) ) { return; }
+			if ( ! checks.tokenTotalSupply(a) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Close deposit 6 DID with wrong address (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.closeDeposit, '', "6", { from:acc.founder });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Close deposit 7 DID with wrong address (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.closeDeposit, '', "7", { from:acc.founder });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Close deposit 8 DID with wrong address (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.closeDeposit, '', "8", { from:acc.founder });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Close deposit 9 DID with wrong address (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.closeDeposit, '', "9", { from:acc.founder });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Close deposit 10 DID with wrong address (should be failed)":function(id) {
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(deposits.closeDeposit, '', "10", { from:acc.founder });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Transfer 50 XGR from iFA to Zoli":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Zoli", acc.zoli) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.transfer, acc.zoli, "5000000000", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseTokenTransaction(acc.ifa, acc.zoli, new BigNumber("5000000000"));
+			if ( ! checks.tokenTransaction(a, "iFA", acc.ifa, "Zoli", acc.zoli) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Transfer 50 XGR from Zoli to iFA":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Zoli", acc.zoli) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.transfer, acc.ifa, "5000000000", { from:acc.zoli });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseTokenTransaction(acc.zoli, acc.ifa, new BigNumber("5000000000"));
+			if ( ! checks.tokenTransaction(a, "Zoli", acc.zoli, "iFA", acc.ifa) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Transfer 50 XGR from Zoli to iFA (should be failed)":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Zoli", acc.zoli) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.transfer, acc.ifa, "5000000000", { from:acc.zoli });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Transfer 50 XGR from iFA to sample contract":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Sample contract", sample.address) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.transfer, sample.address, "5000000000", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseTokenTransaction(acc.ifa, sample.address, new BigNumber("5000000000"));
+			if ( ! checks.tokenTransaction(a, "iFA", acc.ifa, "Sample contract", sample.address) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Transfer 50 XGR from Zoli to sample contract":function(id) {
+		if ( ! checks.userTokenBalance(id, "Zoli", acc.zoli) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Sample contract", sample.address) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(token.transfer, sample.address, "5000000000", { from:acc.zoli });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseTokenTransaction(acc.zoli, sample.address, new BigNumber("5000000000"));
+			if ( ! checks.tokenTransaction(a, "Zoli", acc.zoli, "Sample contract", sample.address) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Withdraw 10 XGR from Sample contract with iFA":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Sample contract", sample.address) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(sample.withdraw, "1000000000", { from:acc.ifa });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			var fee = calculateTransactionFee(new BigNumber("1000000000"));
+			databaseTokenTransaction(sample.address, acc.ifa, new BigNumber("1000000000").sub(fee));
+			if ( ! checks.tokenTransaction(a, "Sample contract", sample.address, "iFA", acc.ifa) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Withdraw 1000 XGR from Sample contract with iFA (should be failed)":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(sample.withdraw, "100000000000", { from:acc.ifa });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Withdraw 10 XGR from Sample contract with Miki (should be failed)":function(id) {
+		if ( ! checks.userTokenBalance(id, "iFA", acc.ifa) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var ret = safeCall(sample.withdraw, "1000000000", { from:acc.miki });
+		if ( ! ret.error ) {
+			setFailed(id);
+			return;
+		}
+		setOk(id);
+		nextTest(id+1);
+	},
+	"Kill Sample contract":function(id) {
+		if ( ! checks.userTokenBalance(id, "Miki", acc.miki) ) { return; }
+		if ( ! checks.userTokenBalance(id, "Sample contract", sample.address) ) { return; }
+		setRet(id, "Sending Transaction..");
+		var bal = token.balanceOf(sample.address);
+		var ret = safeCall(sample.killThisContract, { from:acc.miki });
+		if ( ret.error ) {
+			setFailed(id);
+			return;
+		}
+		waitUntilMined(ret.tx, id, function(a, b) {
+			setRet(a, 'Upgrade database..');
+			databaseTokenTransaction(sample.address, acc.miki, bal);
+			if ( ! checks.tokenTransaction(a, "Sample contract", sample.address, "Miki", acc.miki) ) { return; }
+			setOk(a);
+			nextTest(a+1);
+		});
+	},
+	"Wait 1 block":function(id) {
+		setRet(id, "Waiting..");
+		waitForBlock(1, function (a) {
+			setOk(a);
+			nextTest(a+1);
+		}.bind(this, id));
+	},
+	"Wait 10 block":function(id) {
+		setRet(id, "Waiting..");
+		waitForBlock(10, function (a) {
+			setOk(a);
+			nextTest(a+1);
+		}.bind(this, id));
+	},
+	"Wait 100 block":function(id) {
+		setRet(id, "Waiting..");
+		waitForBlock(100, function (a) {
+			setOk(a);
+			nextTest(a+1);
+		}.bind(this, id));
+	},
+	"Check contract addresses":function(id) {
+		if ( ! checks.contractAddresses(id) ) { return; }
+		setOk(id);
+		nextTest(id+1);
+	},
+}
+
+function getAccountByAddress(addr) {
+	for ( var a in acc ) {
+		if ( acc[a] == addr ) {
+			return a;
+		}
+	}
+	return "Unknown";
+}
+
+// tesztelo ellenorzo funciok
+var checks = {
+	transactionFeeValue:function(id, value) {
+		setRet(id, 'Check transaction fee for '+value.div("1e6").toFixed(6)+' token..');
+		if ( token.getTransactionFee(value.toString()).equals(calculateTransactionFee(value)) ) { return true; }
+		else { setFailed(id);return false; }
+	},
+	transactionFees:function(id) {
+		if ( ! checks.transactionFeeValue(id, new BigNumber("0")) ) { return false; } // 0 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("5e4")) ) { return false; } // 0.05 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("5e5")) ) { return false; } // 0.5 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("1e6")) ) { return false; } // 1 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("1e7")) ) { return false; } // 10 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("1e8")) ) { return false; } // 100 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("1e10")) ) { return false; } // 1000 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("1e12")) ) { return false; } // 1000000 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e4")) ) { return false; } // 0.13 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e5")) ) { return false; } // 1.3 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e6")) ) { return false; } // 13 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e7")) ) { return false; } // 130 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e8")) ) { return false; } // 1300 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e10")) ) { return false; } // 130000 token
+		if ( ! checks.transactionFeeValue(id, new BigNumber("13e12")) ) { return false; } // 13'000'000 token
+		return true;
+	},
+	tokenTotalSupply:function(id) {
+		setRet(id, 'Check XGR total supply..');
+		if ( checksCompareBN_equals(database.token.totalSupply, token.totalSupply()) ) { return true; }
+		else { setFailed(id);return false; }
+	},
+	userTokenBalance:function(id, userName, userAddress) {
+		setRet(id, 'Check '+userName+' XGR Balance..');
+		if ( ! ( userAddress in database.token.balanceOf ) ) { database.token.balanceOf[userAddress] = deepCopy(database.token.balanceOf["default"]); }
+		if ( ! ( userAddress in database.token.lockedBalance ) ) { database.token.lockedBalance[userAddress] = deepCopy(database.token.lockedBalance["default"]); }
+		setRet(id, 'Check '+userName+' XGR Balance..');
+		if ( checksCompareBN_equals( database.token.balanceOf[userAddress], token.balanceOf(userAddress) ) && 
+			checksCompareBN_equals( database.token.lockedBalance[userAddress], tokenDB.lockedBalances(userAddress) )
+			) {
+			return true;
+		}
+		setFailed(id);
+		return false;
+	},
+	tokenTransaction:function(id, fromName, fromAddress, toName, toAddress) {
+		if ( ! checks.userTokenBalance(id, fromName, fromAddress) ) { return false; }
+		if ( ! checks.userTokenBalance(id, toName, toAddress) ) { return false; }
+		if ( ! checks.tokenTotalSupply(id) ) { return false; }
+		return true;
+	},
+	depositsType:function(id, DTID) {
+		setRet(id, 'Check Deposit type '+DTID+'..');
+		var DT = deposits.depositTypes(DTID);
+		if ( checksCompareBN_ee( database.deposits.types[DTID].delay, DT[0] ) && 
+			checksCompareBN_equals( database.deposits.types[DTID].baseFunds, DT[1] ) && 
+			checksCompareBN_equals( database.deposits.types[DTID].interestRateOnEnd, DT[2] ) && 
+			checksCompareBN_equals( database.deposits.types[DTID].interestRateBeforeEnd, DT[3] ) && 
+			checksCompareBN_equals( database.deposits.types[DTID].interestFee, DT[4] ) && 
+			checksCompareBN_ee( database.deposits.types[DTID].closeable, DT[5] ) && 
+			checksCompareBN_ee( database.deposits.types[DTID].valid, DT[6] )
+			) {
+			return true;
+		}
+		setFailed(id);
+		return false;
+	},
+	deposits:function(id, DID) {
+		setRet(id, 'Check Deposit '+DID+'..');
+		var D = tokenDB.getDeposit(DID);
+		if ( checksCompareBN_ee( database.deposits.deposits[DID].addr, D[0] ) && 
+			checksCompareBN_equals( database.deposits.deposits[DID].amount, D[1] ) && 
+			checksCompareBN_ee( database.deposits.deposits[DID].start, D[2].toNumber() ) && 
+			checksCompareBN_ee( database.deposits.deposits[DID].end, D[3].toNumber() ) && 
+			checksCompareBN_equals( database.deposits.deposits[DID].interestOnEnd, D[4] ) && 
+			checksCompareBN_equals( database.deposits.deposits[DID].interestBeforeEnd, D[5] ) && 
+			checksCompareBN_equals( database.deposits.deposits[DID].interestFee, D[6] ) && 
+			checksCompareBN_equals( database.deposits.interestMultiplier, D[7] ) && 
+			checksCompareBN_ee( database.deposits.deposits[DID].closeable, D[8] ) &&
+			checksCompareBN_ee( database.deposits.deposits[DID].valid, D[9] )
+			) {
+			return true;
+		}
+		setFailed(id);
+		return false;
+	},
+	contractAddresses:function(id) {
+		setRet(id, 'Check Token address in TokenDB..');
+		if ( ! checksCompareBN_ee(token.address, tokenDB.tokenAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check Deposits address in TokenDB..');
+		if ( ! checksCompareBN_ee(deposits.address, tokenDB.depositsAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check TokenDB address in Token..');
+		if ( ! checksCompareBN_ee(tokenDB.address, token.databaseAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check Deposits address in Token..');
+		if ( ! checksCompareBN_ee(deposits.address, token.depositsAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check Fork address in Token..');
+		if ( ! checksCompareBN_ee(fork.address, token.forkAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check Token address in Deposits..');
+		if ( ! checksCompareBN_ee(token.address, deposits.tokenAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check TokenDB address in Deposits..');
+		if ( ! checksCompareBN_ee(tokenDB.address, deposits.databaseAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check Founder address in Deposits..');
+		if ( ! checksCompareBN_ee(acc.founder, deposits.founderAddress()) ) { setFailed(id);return false; }
+		setRet(id, 'Check Token address in Fork..');
+		if ( ! checksCompareBN_ee(token.address, fork.tokenAddress()) ) { setFailed(id);return false; }
+		return true;
+	},
+};
+
+function checksCompareBN_equals(a,b) {
+	if ( ! a.equals(b) ) {
+		console.log("Compare failed! "+a.toString()+" not equals "+b.toString());
+		return false;
+	}
+	return true;
+}
+function checksCompareBN_ee(a,b) {
+	if ( a != b ) {
+		console.log("Compare failed! "+a.toString()+" != "+b.toString());
+		return false;
+	}
+	return true;
+}
+// tesztelesi ciklus letrehozasa
+var tester = [];
+function loadTest(name) {
+	if (name == "default-test") {
+		_testLoader([
+			"Base",
+			"First Deposits deploy",
+			"TokenDB deploy",
+			"Fork deploy",
+			"First TokenLib deploy",
+			"Token deploy",
+			"Set Token Address to TokenDB",
+			"Set Deposits Address to TokenDB",
+			"Set Token Address to Deposits",
+			"Set TokenDB Address to Deposits",
+			"Set Founder Address to Deposits",
+			"Set Token Address to Fork",
+			"Check contract addresses",
+			"Fork upload balances",
+			"End",
+		]);
+	} else
+	if (name == "deposit-test") {
+		_testLoader([
+			"Base",
+			"First Deposits deploy",
+			"TokenDB deploy",
+			"Fork deploy",
+			"First TokenLib deploy",
+			"Token deploy",
+			"Set Token Address to TokenDB",
+			"Set Deposits Address to TokenDB",
+			"Set Token Address to Deposits",
+			"Set TokenDB Address to Deposits",
+			"Set Founder Address to Deposits",
+			"Set Token Address to Fork",
+			"Check contract addresses",
+			"Fork upload balances",
+			"Set Deposit Type 1",
+			"Set Deposit Type 2",
+			"Set Deposit Type 3",
+			"Set Deposit Type 4",
+			"Place deposit on iFA with 500 Token for Type 1", //1
+			"Wait 100 block",
+			"Close deposit 1 DID",
+			"Place deposit on iFA with 500 Token for Type 1", //2
+			"Wait 100 block",
+			"Wait 100 block",
+			"Close deposit 2 DID",
+			"Place deposit on iFA with 500 Token for Type 1", //3
+			"Wait 100 block",
+			"Wait 100 block",
+			"Wait 100 block",
+			"Close deposit 3 DID",
+			"Place deposit on iFA with 1500 Token for Type 2", //4
+			"Place deposit on Zoli with 25 Token for Type 1", //5
+			"Transfer 50 XGR from Zoli to iFA",
+			"Transfer 50 XGR from Zoli to iFA",
+			"Transfer 50 XGR from Zoli to iFA (should be failed)",
+			"Wait 100 block",
+			"Wait 100 block",
+			"Wait 100 block",
+			"Close deposit 4 DID",
+			"Close deposit 5 DID",
+			"Transfer 50 XGR from iFA to Zoli",
+			"Transfer 50 XGR from Zoli to iFA",
+			"Place deposit on Zoli with 25 Token for Type 1", //6
+			"Place deposit on Zoli with 25 Token for Type 1", //7
+			"Place deposit on Zoli with 25 Token for Type 1 (should be failed)",
+			"Wait 100 block",
+			"Close deposit 7 DID with wrong address (should be failed)",
+			"Close deposit 6 DID",
+			"Wait 100 block",
+			"Wait 100 block",
+			"Close deposit 7 DID",
+			"Wait 100 block",
+			"Place deposit on Zoli with 25 Token for Type 2 (should be failed)",
+			"Place deposit on Zoli with 25 Token for Type 1", //8
+			"Revoke Deposit Type ID 1",
+			"Place deposit on Zoli with 25 Token for Type 1 (should be failed)",
+			"Wait 100 block",
+			"Wait 100 block",
+			"Close deposit 8 DID",
+			"Close deposit 8 DID (should be failed)",
+			"Place deposit on iFA with 2000 Token for Type 4", //9
+			"Close deposit 9 DID (should be failed)",
+			"Wait 100 block",
+			"Close deposit 9 DID (should be failed)",
+			"Wait 100 block",
+			"Close deposit 9 DID",
+			"End",
+		]);
+	} else
+	if (name == "replace-test") {
+		_testLoader([
+			"Base",
+			"First Deposits deploy",
+			"TokenDB deploy",
+			"Fork deploy",
+			"First TokenLib deploy",
+			"Token deploy",
+			"Set Token Address to TokenDB",
+			"Set Deposits Address to TokenDB",
+			"Set Token Address to Deposits",
+			"Set TokenDB Address to Deposits",
+			"Set Founder Address to Deposits",
+			"Set Token Address to Fork",
+			"Check contract addresses",
+			"Fork upload balances",
+			"Set Deposit Type 1",
+			"Transfer 50 XGR from iFA to Zoli",
+			"Place deposit on Zoli with 25 Token for Type 1", // 1
+			"Wait 100 block",
+			"Second Deposits deploy",
+			"Set Deposits Address to Token",
+			"Set Token Address to Deposits",
+			"Set TokenDB Address to Deposits",
+			"Set Founder Address to Deposits",
+			"Set Deposits Address to TokenDB",
+			"Check contract addresses",
+			"Wait 100 block",
+			"Close deposit 1 DID",
+			"Transfer 50 XGR from iFA to Zoli",
+			"Set Deposit Type 1",
+			"Place deposit on Zoli with 25 Token for Type 1", // 2
+			"Second TokenLib deploy",
+			"Set TokenLib Address to Token",
+			"Check contract addresses",
+			"Wait 100 block",
+			"Close deposit 2 DID",
+			"End",
+		]);
+	} else 
+	if (name == "thirdpartycontract-test") {
+		_testLoader([
+			"Base",
+			"First Deposits deploy",
+			"TokenDB deploy",
+			"Fork deploy",
+			"Token deploy",
+			"Set Token Address to TokenDB",
+			"Set Deposits Address to TokenDB",
+			"Set Token Address to Deposits",
+			"Set TokenDB Address to Deposits",
+			"Set Founder Address to Deposits",
+			"Set Token Address to Fork",
+			"Check contract addresses",
+			"Fork upload balances",
+			"Deploy sample contract",
+			"Transfer 50 XGR from iFA to sample contract",
+			"Transfer 50 XGR from Zoli to sample contract",
+			"Withdraw 10 XGR from Sample contract with iFA",
+			"Withdraw 1000 XGR from Sample contract with iFA (should be failed)",
+			"Withdraw 10 XGR from Sample contract with Miki (should be failed)",
+			"Kill Sample contract",
+			"End",
+		]);
+	} else 
+	{}
+}
+
+function _testLoader(data) {
+	tester = [];
+	document.getElementById('out').innerHTML = "";
+	for (var a=0 ; a<data.length ; a++) {
+		out(a, data[a], "Wait for queue..");
+		tester.push(tests[data[a]]);
+	}
+}
+function out(id, text, status) {
+	document.getElementById('out').innerHTML += "<span id=\"row_"+id+"\">&lt;"+id+"&gt; "+text+": <span id=\"ret_"+id+"\">"+status+"</span></span><br>";
+}
+
+function databaseAddNewDepositType(DID, delay, baseFunds, ioend, ibend, ifee, closeable) {
+	database.deposits.types[DID] = deepCopy(database.deposits.types["default"]);
+	database.deposits.types[DID].delay = delay;
+	database.deposits.types[DID].baseFunds = new BigNumber(baseFunds);
+	database.deposits.types[DID].interestRateOnEnd = new BigNumber(ioend);
+	database.deposits.types[DID].interestRateBeforeEnd = new BigNumber(ibend);
+	database.deposits.types[DID].interestFee = new BigNumber(ifee);
+	database.deposits.types[DID].closeable = closeable;
+	database.deposits.types[DID].valid = true;
+}
+function databasePlaceDeposit(DID, DTID, addr, amount) {
+	if ( ! ( addr in database.token.lockedBalance ) ) { database.token.lockedBalance[addr] = deepCopy(database.token.lockedBalance["default"]); }
+	database.token.lockedBalance[addr] = database.token.lockedBalance[addr].add(amount);
+	if ( ! ( DID in database.deposits.deposits ) ) { database.deposits.deposits[DID] = deepCopy(database.deposits.deposits["default"]); }
+	database.deposits.deposits[DID].addr = addr;
+	database.deposits.deposits[DID].amount = amount;
+	database.deposits.deposits[DID].start = web3.eth.blockNumber;
+	database.deposits.deposits[DID].end = database.deposits.deposits[DID].start+database.deposits.types[DTID].delay;
+	database.deposits.deposits[DID].interestOnEnd = database.deposits.types[DTID].interestRateOnEnd;
+	database.deposits.deposits[DID].interestBeforeEnd = database.deposits.types[DTID].interestRateBeforeEnd;
+	database.deposits.deposits[DID].interestFee = database.deposits.types[DTID].interestFee;
+	database.deposits.deposits[DID].interestMultiplier = database.deposits.interestMultiplier;
+	database.deposits.deposits[DID].closeable = database.deposits.types[DTID].closeable;
+	database.deposits.deposits[DID].valid = true;
+}
+function databaseCloseDeposit(DID) {
+	interest = databaseCalculateInterest(DID);
+	database.deposits.deposits[DID].valid = false;
+	if ( interest[3] == false && ! database.deposits.deposits[DID].closeable ) {
+		throw new Error("Non closeable deposit closed before expire!");
+	}
+	if ( ! ( database.deposits.deposits[DID].addr in database.token.balanceOf ) ) { database.token.balanceOf[database.deposits.deposits[DID].addr] = deepCopy(database.token.balanceOf["default"]); }
+	database.token.balanceOf[database.deposits.deposits[DID].addr] = database.token.balanceOf[database.deposits.deposits[DID].addr].add(interest[0]);
+	if ( ! ( acc.founder in database.token.balanceOf ) ) { database.token.balanceOf[acc.founder] = deepCopy(database.token.balanceOf["default"]); }
+	database.token.balanceOf[acc.founder] = database.token.balanceOf[acc.founder].add(interest[1]);
+	database.token.lockedBalance[database.deposits.deposits[DID].addr] = database.token.lockedBalance[database.deposits.deposits[DID].addr].sub(database.deposits.deposits[DID].amount);
+	database.token.totalSupply = database.token.totalSupply.add(interest[0].add(interest[1]));
+}
+function databaseCalculateInterest(DID) {
+	var BN = web3.eth.blockNumber;
+	var data = database.deposits.deposits[DID];
+	if ( ! data.valid || data.amount.lessThanOrEqualTo(0) || data.end <= data.start || BN <= data.start ) { return [0, 0, false]; }
+	var rate;
+	var delay;
+	var expired;
+	var interestFee = new BigNumber(0);
+	if ( data.end <= BN ) {
+		rate = data.interestOnEnd;
+		delay = data.end - data.start;
+		expired = true;
+	} else {
+		rate = data.interestBeforeEnd;
+		delay = BN - data.start;
+		expired = false;
+	}
+	if ( ! rate.greaterThan(0) ) { return [0, 0, expired]; }
+	interest = data.amount.mul(rate).div(100).floor().div(data.interestMultiplier).floor().mul(delay).div(  data.end - data.start ).floor();
+	if ( data.interestFee.greaterThan(0) && interest.greaterThan(0) ) {
+		interestFee = interest.mul(data.interestFee).div(100).floor().div(data.interestMultiplier).floor();
+	}
+	if ( interestFee.greaterThan(0) ) {
+		interest = interest.sub(interestFee);
+	}
+	return [interest, interestFee, expired];
+}
+
+
+
+
+
+
+
+function databaseTokenTransaction(from, to, value) {
+	if ( ! ( to in database.token.balanceOf ) ) { database.token.balanceOf[to] = deepCopy(database.token.balanceOf["default"]); }
+	if ( to ) {
+		var subFromAmount = 0;
+		if ( from ) {
+			subFromAmount = databaseProcessTransactionFee(from, value);
+			console.log(subFromAmount.toString());
+		}
+		database.token.balanceOf[to] = database.token.balanceOf[to].add(value.sub(subFromAmount));
+	}
+	if ( from ) {
+		database.token.balanceOf[from] = database.token.balanceOf[from].sub(value);
+	} else {
+		// mint
+		database.token.totalSupply = database.token.totalSupply.add(value);
+	}
+}
+function databaseProcessTransactionFee(addr, amount) {
+	var ret = new BigNumber(0);
+	var feeValue = calculateTransactionFee(amount);
+	if ( database.token.balanceOf[addr].equals(amount) ) {
+		// az amountbol vonjuk le a feet!
+		ret = feeValue;
+	} else {
+		database.token.balanceOf[addr] = database.token.balanceOf[addr].sub(feeValue);
+	}
+	database.token.totalSupply = database.token.totalSupply.sub(feeValue);
+	return ret;
+}
+function databaseTransferEther(from, to, value, fee) {
+	if ( to && to.length >= 40 && value.greaterThan(0) ) {
+		if ( ! ( to in database.accounts ) ) { database.accounts[to] = database.accounts["default"]; }
+		database.accounts[to] = database.accounts[to].add(value);
+	}
+	if ( ! ( from in database.accounts ) ) { database.accounts[from] = database.accounts["default"]; }
+	database.accounts[from] = database.accounts[from].sub(value.add(fee));
+}
+function calculateTransactionFee(value) {
+	var fee = new BigNumber(value.mul(database.token.transactionFee).div(database.token.transactionFeeM).div(100).floor().toString());
+	if ( fee.lessThan(database.token.transactionFeeMin) ) {
+		return database.token.transactionFeeMin;
+	} else if ( fee.greaterThan(database.token.transactionFeeMax) ) {
+		return database.token.transactionFeeMax;
+	} else {
+		return fee;
+	}
+}
+function waitUntilMined(tx, id, callB) {
+	var stop = false;
+	var txData = web3.eth.getTransactionReceipt(tx);
+	if ( txData ) {
+		if ( txData.hasOwnProperty('blockNumber') ) {
+			// le kell vonni az elkuldott ethert!
+			var txData2 = web3.eth.getTransaction(tx);
+			databaseTransferEther(txData2.from, txData2.to, new BigNumber(txData2.value), new BigNumber(txData.gasUsed).mul(txData2.gasPrice) );
+			// van block szama!
+			console.log("TX "+tx+" GAS usage:"+txData['gasUsed']);
+			stop = true;
+		}
+	}
+	setRet(id, 'Wait for miners..');
+	if ( ! stop ) {
+		window.setTimeout(function(a, b){ waitUntilMined(a, b, callB); }.bind(this, tx, id, callB), 500);
+	} else {
+		callB(id, txData);
+	}
+}
+function setRet(id, data) {
+	document.getElementById('ret_'+id).innerHTML = data;
+	document.getElementById('ret_'+id).style.fontWeight = 'bold';
+}
+function setOk(id) {
+	document.getElementById('ret_'+id).style.color = 'green';
+	setRet(id, "Passed");
+	// save database history
+	var currblock = web3.eth.blockNumber;
+	database.node.endBlock = currblock;
+	databaseHistory.push(JSON.parse(JSON.stringify(database)));
+	database.node.startBlock = currblock;
+	// set range
+	var el = document.getElementById("historyRangeEl");
+	el.max = databaseHistory.length-1;
+	if ( el.value == databaseHistory.length-2 || el.value == 0 ) {
+		el.value = databaseHistory.length-1
+		showDatabase();
+	}
+}
+function setFailed(id) {
+	document.getElementById('ret_'+id).style.color = 'red';
+	document.getElementById('ret_'+id).style.fontWeight = 'bold';
+	setRet(id, document.getElementById('ret_'+id).innerHTML + " FAILED");
+	// save database history
+	var currblock = web3.eth.blockNumber;
+	database.node.endBlock = currblock;
+	databaseHistory.push(JSON.parse(JSON.stringify(database)));
+	database.node.startBlock = currblock;
+	// set range
+	var el = document.getElementById("historyRangeEl");
+	el.max = databaseHistory.length-1;
+	if ( el.value == databaseHistory.length-2 || el.value == 0 ) {
+		el.value = databaseHistory.length-1
+		showDatabase();
+	}
+}
+function showDatabase(evn) {
+	if ( databaseHistory.length == 0 ) { return; }
+	var el = document.getElementById("historyRangeEl");
+	if ( typeof(evn) !== "undefined") {
+		el = evn.target;
+	}
+	document.getElementById("historyRangeID").innerHTML = el.value;
+	var others = document.getElementsByClassName("rowHighlight");
+	for (var a=0 ; a<others.length ; a++) {
+		others[a].classList.remove("rowHighlight");
+	}
+	if (document.getElementById("row_"+el.value) !== 'undefined') {
+		document.getElementById("row_"+el.value).classList.add("rowHighlight");
+		ddb = deepCopy(databaseHistory[el.value]);
+	}
+	// megjelenitendo tisztitasa es surese
+	var deb_accounts = document.getElementById("deb_accounts").checked;
+	var deb_deposits = document.getElementById("deb_deposits").checked;
+	var deb_token = document.getElementById("deb_token").checked;
+	if ( ! deb_accounts) { delete ddb.accounts; }
+	if ( ! deb_deposits) { delete ddb.deposits; }
+	if ( ! deb_token) { delete ddb.token; }
+	document.getElementById("db").innerHTML = JSON.stringify(filterIt(ddb), undefined, 4);
+}
+function filterIt(data) {
+	var ret = {};
+	// "filter-1-1"
+	for ( var a=1 ; a<6 ; a++ ) {
+		var elVal1 = document.getElementById("filter-"+a+"-1").value;
+		var elVal2 = document.getElementById("filter-"+a+"-2").value;
+		var elVal3 = document.getElementById("filter-"+a+"-3").value;
+		var elVal4 = document.getElementById("filter-"+a+"-4").value;
+		var elVal5 = document.getElementById("filter-"+a+"-5").value;
+		if ( elVal1 ) {
+			// elso nagy elem beillesztese
+			tmpret = {};
+			if ( elVal1 in data ) {
+				tmpret[elVal1] = data[elVal1];
+				if ( elVal2 && elVal2 in tmpret[elVal1]) {
+					tmpret[elVal1] = {};
+					tmpret[elVal1][elVal2] =  data[elVal1][elVal2];
+					if ( elVal3 && elVal3 in tmpret[elVal1][elVal2]) {
+						tmpret[elVal1][elVal2] = {};
+						tmpret[elVal1][elVal2][elVal3] =  data[elVal1][elVal2][elVal3];
+						if ( elVal4 && elVal4 in tmpret[elVal1][elVal2][elVal3]) {
+							tmpret[elVal1][elVal2][elVal3] = {};
+							tmpret[elVal1][elVal2][elVal3][elVal4] =  data[elVal1][elVal2][elVal3][elVal4];
+							if ( elVal5 && elVal5 in tmpret[elVal1][elVal2][elVal3][elVal4]) {
+								tmpret[elVal1][elVal2][elVal3][elVal4] = {};
+								tmpret[elVal1][elVal2][elVal3][elVal4][elVal5] =  data[elVal1][elVal2][elVal3][elVal4][elVal5];
+							}
+						}
+					}
+				}
+			}
+			ret['filter'+a] = tmpret;
+		}
+	}
+	if ( Object.keys(ret).length == 0 ) {
+		return data;
+	} else {
+		return ret;
+	}
+}
+function createConstructor(ABI, data) {
+	var contract;
+	for (var a=0 ; a<ABI.length ; a++) {
+		if (ABI[a].type == 'constructor') {
+			contract = web3.eth.contract([{"constant":false,"inputs":ABI[a].inputs,"name":"doThat","outputs":[],"payable":false,"type":"function"}]).at()
+		}
+	}
+	if ( ! contract ) {
+		throw new Error("No constructor ABI found!");
+	}
+	var ret = contract.doThat.getData.apply(this, data).substr(10);
+	//console.log("Constructor: "+ ret);
+	return ret;
+}
+function createContract(web3, data) {
+	data.gas = 4600000;
+	var tx = web3.eth.sendTransaction(data);
+	console.log("Contract created: "+tx);
+	return tx;
+}
+function safeCall() {
+	var func = eval(arguments[0]);
+	var args = Object.values(arguments);
+	args.shift();
+	if (args.length == 0) { return; }
+	try { 
+		var maxGas = 4600000;//4000000; // 4712388
+		var tmpArgs = deepCopy(args);
+		tmpArgs[args.length-1].gasPrice = 0;
+		try {
+			var gas = func.estimateGas.apply(this, tmpArgs);
+		} catch(err) {
+			console.log("RPC throw!");
+			var gas = maxGas-1;
+		}
+		var isThrow = false;
+		if (gas == 50000000 || gas >= maxGas) { isThrow = true; }
+		args[args.length-1]["gas"] =  Math.floor(gas * 1.5 + 150000);
+		if (args[args.length-1]["gas"] > maxGas) { args[args.length-1]["gas"] = maxGas; }
+		console.log("Estimated gas: "+String(gas)+" Defined gas:"+String(args[args.length-1]["gas"]));
+		var tx = func.apply(this, args);
+		console.log("TX: "+tx+" Block: "+web3.eth.blockNumber);
+		if ( isThrow ) { return { error:true, msg:"throw" }; }
+		else { return { error:false, tx:tx }; }
+	}
+	catch(err) {
+		return { error:true, msg:err };
+	}
+}
+function onRangeChange(rangeInputElmt, listener) {
+
+  var inputEvtHasNeverFired = true;
+
+  var rangeValue = {current: undefined, mostRecent: undefined};
+  
+  rangeInputElmt.addEventListener("input", function(evt) {
+    inputEvtHasNeverFired = false;
+    rangeValue.current = evt.target.value;
+    if (rangeValue.current !== rangeValue.mostRecent) {
+      listener(evt);
+    }
+    rangeValue.mostRecent = rangeValue.current;
+  });
+
+  rangeInputElmt.addEventListener("change", function(evt) {
+    if (inputEvtHasNeverFired) {
+      listener(evt);
+    }
+  });
+}
+onRangeChange(document.getElementById("historyRangeEl"), showDatabase);
+function deepCopy(o) {
+	var copy = o,k;
+	if (o && typeof o === 'object') {
+		copy = Object.prototype.toString.call(o) === '[object Array]' ? [] : {};
+		for (k in o) {
+			copy[k] = deepCopy(o[k]);
+		}
+	}
+	return copy;
+}
+function waitForBlock(count, callback) {
+	if ( document.getElementById("testRPC").checked ) {
+		web3.evm.mine(count);
+		console.log("jumped "+count);
+		callback();
+	} else {
+		waitForBlock_(web3.eth.blockNumber+count, false, callback);
+	}
+}
+function waitForBlock_(targetBlock, evmMine, callback) {
+	if ( web3.eth.blockNumber >= targetBlock ) {
+		callback();
+		console.log("jump done");
+		return;
+	} else if ( evmMine ) {
+		web3.evm.mine(1);
+	}
+	window.setTimeout( function(a,b,c){ waitForBlock_(a,b,c) }.bind(this, targetBlock, evmMine, callback), 100);
+}
+loadTest('default-test');
+function sha3() {
+	var data = "";
+	for ( var a=0 ; a < arguments.length ; a++ ) {
+		data += arguments[a];
+	}
+	return web3.sha3(data);
+}
+</script>
+</body>
+</html>
