@@ -1,4 +1,4 @@
-# Contract files
+# Smart contract source
 
 ## Our contacts
 Website:
