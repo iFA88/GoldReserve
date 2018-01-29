@@ -1,6 +1,6 @@
 /*
     xgr_deposits.sol
-    2.0.0
+    2.0.1
     
     Rajci 'iFA' Andor @ ifa@fusionwallet.io
 */
@@ -40,7 +40,7 @@ contract Deposits is Owned, SafeMath {
     address public tokenAddress;
     address public databaseAddress;
     address public founderAddress;
-    uint256 public interestMultiplier = 1e4;
+    uint256 public interestMultiplier = 1e3;
     /* Externals */
     function changeDataBaseAddress(address newDatabaseAddress) external onlyForOwner {
         databaseAddress = newDatabaseAddress;
@@ -71,11 +71,13 @@ contract Deposits is Owned, SafeMath {
             interestRateOnEnd,
             interestRateBeforeEnd,
             interestFee,
+            interestMultiplier,
             closeable
         );
     }
     function rekoveDepositType(uint256 DTID) external onlyForOwner {
-        depositTypes[DTID].valid = false;
+        delete depositTypes[DTID].valid;
+        EventRevokeDepositType(DTID);
     }
     function placeDeposit(uint256 amount, uint256 depositType) external checkSelf {
         require( depositTypes[depositType].valid );
@@ -116,7 +118,7 @@ contract Deposits is Owned, SafeMath {
             require( Token(tokenAddress).mint(founderAddress, interestFee) );
         }
         require( TokenDB(databaseAddress).closeDeposit(DID) );
-        EventDepositClosed(DID, interest, interestFee);
+        EventDepositClosed(DID, beneficary, interest, interestFee);
     }
     function _calculateInterest(deposits_s data) internal view returns (uint256 interest, uint256 interestFee) {
         if ( ! data.valid || data.amount <= 0 || data.end <= data.start || block.number <= data.start ) { return (0, 0); }
@@ -153,8 +155,8 @@ contract Deposits is Owned, SafeMath {
     }
     /* Events */
     event EventNewDepositType(uint256 indexed DTID, uint256 blockDelay, uint256 baseFunds,
-        uint256 interestRateOnEnd, uint256 interestRateBeforeEnd, uint256 interestFee, bool closeable);
+        uint256 interestRateOnEnd, uint256 interestRateBeforeEnd, uint256 interestFee, uint256 interestMultiplier, bool closeable);
     event EventRevokeDepositType(uint256 indexed DTID);
     event EventNewDeposit(uint256 indexed DID);
-    event EventDepositClosed(uint256 indexed DID, uint256 indexed interest, uint256 indexed interestFee);
+    event EventDepositClosed(uint256 indexed DID, address beneficary, uint256 interest, uint256 interestFee);
 }
