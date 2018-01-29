@@ -1,6 +1,6 @@
 /*
     xgr_deposits.sol
-    2.0.1
+    2.0.2
     
     Rajci 'iFA' Andor @ ifa@fusionwallet.io
 */
@@ -41,6 +41,12 @@ contract Deposits is Owned, SafeMath {
     address public databaseAddress;
     address public founderAddress;
     uint256 public interestMultiplier = 1e3;
+    /* Constructor */
+    function Deposits(address TokenAddress, address DatabaseAddress, address FounderAddress) {
+        tokenAddress = TokenAddress;
+        databaseAddress = DatabaseAddress;
+        founderAddress = FounderAddress;
+    }
     /* Externals */
     function changeDataBaseAddress(address newDatabaseAddress) external onlyForOwner {
         databaseAddress = newDatabaseAddress;
