@@ -1,6 +1,6 @@
 /*
     xgr_deposits.sol
-    2.0.2
+    2.0.3
     
     Rajci 'iFA' Andor @ ifa@fusionwallet.io
 */
@@ -102,7 +102,7 @@ contract Deposits is Owned, SafeMath {
             depositTypes[depositType].closeable
         );
         require( success );
-        EventNewDeposit(DID);
+        EventNewDeposit(DID, msg.sender);
     }
     function closeDeposit(address beneficary, uint256 DID) external checkSelf {
         address _beneficary = beneficary;
@@ -124,7 +124,7 @@ contract Deposits is Owned, SafeMath {
             require( Token(tokenAddress).mint(founderAddress, interestFee) );
         }
         require( TokenDB(databaseAddress).closeDeposit(DID) );
-        EventDepositClosed(DID, beneficary, interest, interestFee);
+        EventDepositClosed(DID, msg.sender, beneficary, interest, interestFee);
     }
     function _calculateInterest(deposits_s data) internal view returns (uint256 interest, uint256 interestFee) {
         if ( ! data.valid || data.amount <= 0 || data.end <= data.start || block.number <= data.start ) { return (0, 0); }
@@ -163,6 +163,6 @@ contract Deposits is Owned, SafeMath {
     event EventNewDepositType(uint256 indexed DTID, uint256 blockDelay, uint256 baseFunds,
         uint256 interestRateOnEnd, uint256 interestRateBeforeEnd, uint256 interestFee, uint256 interestMultiplier, bool closeable);
     event EventRevokeDepositType(uint256 indexed DTID);
-    event EventNewDeposit(uint256 indexed DID);
-    event EventDepositClosed(uint256 indexed DID, address beneficary, uint256 interest, uint256 interestFee);
+    event EventNewDeposit(uint256 indexed DID, address owner);
+    event EventDepositClosed(uint256 indexed DID, address owner, address beneficary, uint256 interest, uint256 interestFee);
 }
