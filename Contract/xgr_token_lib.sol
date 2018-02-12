@@ -102,14 +102,19 @@ contract TokenLib is SafeMath, Owned {
         uint256 _fee;
         uint256 _payBack;
         uint256 _amount = amount;
+        uint256 balance = TokenDB(databaseAddress).balanceOf(from);
+        uint256 lockedBalance = TokenDB(databaseAddress).lockedBalances(from);
+        balance = safeSub(balance, lockedBalance);
+        require( _amount > 0 && balance > 0 );
         require( from != 0x00 && to != 0x00 );
         if( fee ) {
             (_success, _fee) = getTransactionFee(amount);
             require( _success );
-            if ( TokenDB(databaseAddress).balanceOf(from) == amount ) {
+            if ( balance == amount ) {
                 _amount = safeSub(amount, _fee);
             }
         }
+        require( balance >= safeAdd(_amount, _fee) );
         if ( fee ) {
             Burn(from, _fee);
         }
