@@ -68,10 +68,9 @@ contract Token is SafeMath, Owned {
      * @notice `msg.sender` approves `spender` to spend `amount` tokens on its behalf.
      * @param spender The address of the account able to transfer the tokens
      * @param amount The amount of tokens to be approved for transfer
-     * @param nonce The transaction count of the authorised address
      * @return True if the approval was successful
      */
-    function approve(address _spender, uint256 _value) external returns (bool _success) {
+    function approve(address spender, uint256 amount) external returns (bool _success) {
         address _trg = libAddress;
         assembly {
             let m := mload(0x40)
