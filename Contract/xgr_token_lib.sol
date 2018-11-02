@@ -1,8 +1,12 @@
 /*
-    xgr_token_lib.sol
-    2.0.0
+    Gold Reserve Token
     
-    Rajci 'iFA' Andor @ ifa@fusionwallet.io
+    xgr_token_lib.sol
+    3.0.0
+    
+    Fusion Solutions KFT <contact@fusionsolutions.io>
+    
+    Written by Andor Rajci, November 2018
 */
 pragma solidity 0.4.18;
 
@@ -59,14 +63,8 @@ contract TokenLib is SafeMath, Owned {
         transactionFeeMin = min;
         transactionFeeMax = max;
     }
-    function approve(address spender, uint256 amount, uint256 nonce) external returns (bool success) {
-        _approve(spender, amount, nonce);
-        return true;
-    }
-    function approveAndCall(address spender, uint256 amount, uint256 nonce, bytes extraData) external returns (bool success) {
-        _approve(spender, amount, nonce);
-        require( checkContract(spender) );
-        require( SampleContract(spender).approvedToken(msg.sender, amount, extraData) );
+    function approve(address spender, uint256 amount) external returns (bool success) {
+        _approve(spender, amount);
         return true;
     }
     function transfer(address to, uint256 amount) external returns (bool success) {
@@ -138,11 +136,9 @@ contract TokenLib is SafeMath, Owned {
         require( TokenDB(databaseAddress).increase(owner, value) );
         Mint(owner, value);
     }
-    function _approve(address spender, uint256 amount, uint256 nonce) internal {
+    function _approve(address spender, uint256 amount) internal {
         require( msg.sender != spender );
-        var (_success, _remaining, _nonce) = TokenDB(databaseAddress).getAllowance(msg.sender, spender);
-        require( _success && ( _nonce == nonce ) );
-        require( TokenDB(databaseAddress).setAllowance(msg.sender, spender, amount, nonce) );
+        require( TokenDB(databaseAddress).setAllowance(msg.sender, spender, amount, 0x00) );
         Approval(msg.sender, spender, amount);
     }
     function isContract(address addr) internal view returns (bool success) {

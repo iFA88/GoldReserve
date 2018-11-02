@@ -1,8 +1,12 @@
 /*
-    xgr_token.sol
-    2.0.0
+    Gold Reserve Token
     
-    Rajci 'iFA' Andor @ ifa@fusionwallet.io
+    xgr_token.sol
+    3.0.0
+    
+    Fusion Solutions KFT <contact@fusionsolutions.io>
+    
+    Written by Andor Rajci, November 2018
 */
 pragma solidity 0.4.18;
 
@@ -64,38 +68,16 @@ contract Token is SafeMath, Owned {
      * @notice `msg.sender` approves `spender` to spend `amount` tokens on its behalf.
      * @param spender The address of the account able to transfer the tokens
      * @param amount The amount of tokens to be approved for transfer
-     * @param nonce The transaction count of the authorised address
      * @return True if the approval was successful
      */
-    function approve(address spender, uint256 amount, uint256 nonce) external returns (bool success) {
+    function approve(address spender, uint256 amount) external returns (bool _success) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
-            } default {
-                return(m, 0x20)
-            }
-        }
-    }
-    /**
-     * @notice `msg.sender` approves `spender` to spend `amount` tokens on its behalf and notify the spender from your approve with your `extraData` data.
-     * @param spender The address of the account able to transfer the tokens
-     * @param amount The amount of tokens to be approved for transfer
-     * @param nonce The transaction count of the authorised address
-     * @param extraData Data to give forward to the receiver
-     * @return True if the approval was successful
-     */
-    function approveAndCall(address spender, uint256 amount, uint256 nonce, bytes extraData) external returns (bool success) {
-        address _trg = libAddress;
-        assembly {
-            let m := mload(0x20)
-            calldatacopy(m, 0, calldatasize)
-            let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
-            switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
@@ -110,11 +92,11 @@ contract Token is SafeMath, Owned {
     function transfer(address to, uint256 amount) external returns (bool success) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
@@ -130,11 +112,11 @@ contract Token is SafeMath, Owned {
     function transferFrom(address from, address to, uint256 amount) external returns (bool success) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
@@ -150,11 +132,11 @@ contract Token is SafeMath, Owned {
     function transfer(address to, uint256 amount, bytes extraData) external returns (bool success) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
@@ -163,11 +145,11 @@ contract Token is SafeMath, Owned {
     function mint(address owner, uint256 value) external returns (bool success) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
@@ -178,11 +160,11 @@ contract Token is SafeMath, Owned {
     function allowance(address owner, address spender) public constant returns (uint256 remaining, uint256 nonce) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x40)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x40)
             }
@@ -191,11 +173,11 @@ contract Token is SafeMath, Owned {
     function getTransactionFee(uint256 value) public constant returns (bool success, uint256 fee) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x40)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x40)
             }
@@ -204,11 +186,11 @@ contract Token is SafeMath, Owned {
     function balanceOf(address owner) public constant returns (uint256 value) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
@@ -217,11 +199,11 @@ contract Token is SafeMath, Owned {
     function balancesOf(address owner) public constant returns (uint256 balance, uint256 lockedAmount) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x40)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x40)
             }
@@ -230,11 +212,11 @@ contract Token is SafeMath, Owned {
     function totalSupply() public constant returns (uint256 value) {
         address _trg = libAddress;
         assembly {
-            let m := mload(0x20)
+            let m := mload(0x40)
             calldatacopy(m, 0, calldatasize)
             let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
             switch success case 0 {
-                invalid
+                revert(0, 0)
             } default {
                 return(m, 0x20)
             }
