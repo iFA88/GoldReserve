@@ -85,27 +85,6 @@ contract Token is SafeMath, Owned {
         }
     }
     /**
-     * @notice `msg.sender` approves `spender` to spend `amount` tokens on its behalf and notify the spender from your approve with your `extraData` data.
-     * @param spender The address of the account able to transfer the tokens
-     * @param amount The amount of tokens to be approved for transfer
-     * @param nonce The transaction count of the authorised address
-     * @param extraData Data to give forward to the receiver
-     * @return True if the approval was successful
-     */
-    function approveAndCall(address spender, uint256 amount, uint256 nonce, bytes extraData) external returns (bool success) {
-        address _trg = libAddress;
-        assembly {
-            let m := mload(0x40)
-            calldatacopy(m, 0, calldatasize)
-            let success := delegatecall(gas, _trg, m, calldatasize, m, 0x20)
-            switch success case 0 {
-                revert(0, 0)
-            } default {
-                return(m, 0x20)
-            }
-        }
-    }
-    /**
      * @notice Send `amount` tokens to `to` from `msg.sender`
      * @param to The address of the recipient
      * @param amount The amount of tokens to be transferred
