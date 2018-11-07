@@ -2,7 +2,7 @@
     Gold Reserve Token
     
     xgr_token_lib.sol
-    3.0.0
+    3.1.0
     
     Fusion Solutions KFT <contact@fusionsolutions.io>
     
@@ -119,18 +119,6 @@ contract TokenLib is SafeMath, Owned {
         Transfer(from, to, _amount);
         Transfer2(from, to, _amount, extraData);
         require( TokenDB(databaseAddress).transfer(from, to, _amount, _fee) );
-        if ( isContract(to) ) {
-            require( checkContract(to) );
-            (_success, _payBack) = SampleContract(to).receiveToken(from, amount, extraData);
-            require( _success );
-            require( amount > _payBack );
-            if ( _payBack > 0 ) {
-                bytes memory _data;
-                Transfer(to, from, _payBack);
-                Transfer2(to, from, _payBack, _data);
-                require( TokenDB(databaseAddress).transfer(to, from, _payBack, 0) );
-            }
-        }
     }
     function _mint(address owner, uint256 value) internal {
         require( TokenDB(databaseAddress).increase(owner, value) );
@@ -140,16 +128,6 @@ contract TokenLib is SafeMath, Owned {
         require( msg.sender != spender );
         require( TokenDB(databaseAddress).setAllowance(msg.sender, spender, amount, 0x00) );
         Approval(msg.sender, spender, amount);
-    }
-    function isContract(address addr) internal view returns (bool success) {
-        uint256 _codeLength;
-        assembly {
-            _codeLength := extcodesize(addr)
-        }
-        return _codeLength > 0;
-    }
-    function checkContract(address addr) internal view returns (bool appropriate) {
-        return SampleContract(addr).XGRAddress() == address(this);
     }
     /* Constants */
     function allowance(address owner, address spender) public constant returns (uint256 remaining, uint256 nonce) {
